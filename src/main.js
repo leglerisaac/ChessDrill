@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { OPENINGS, allLines } from './openings.js';
-import { createDrill, parseMove, weightedPick } from './drill.js';
+import { createDrill, eligibleSelectedLines, parseMove, weightedPick } from './drill.js';
 import './styles.css';
 
 const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
@@ -74,8 +74,9 @@ function appShell(content) {
 }
 
 function libraryView() {
-  const selectedLines = allLines().filter(line => state.selected.has(line.id));
   const catalog = levelCatalog();
+  const eligibleIds = new Set(catalog.flatMap(opening=>opening.lines.map(line=>line.id)));
+  const selectedLines = eligibleSelectedLines(allLines(), state.selected, eligibleIds);
   const catalogLineCount = catalog.reduce((sum,opening)=>sum+opening.lines.length,0);
   let visible = catalog.filter(opening => state.focus === 'all' || opening.color === state.focus);
   const query = state.query.trim().toLowerCase();
@@ -98,7 +99,8 @@ function openingCard(opening) {
 }
 
 function startSession() {
-  const available = allLines().filter(line => state.selected.has(line.id));
+  const eligibleIds = new Set(levelCatalog().flatMap(opening=>opening.lines.map(line=>line.id)));
+  const available = eligibleSelectedLines(allLines(), state.selected, eligibleIds);
   const line = weightedPick(available, state.stats);
   if (!line) return;
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;

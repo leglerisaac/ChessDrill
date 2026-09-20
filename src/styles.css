@@ -89,7 +89,7 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .progress-track{height:6px;background:#dce1dd;border-radius:9px;overflow:hidden}
 .progress-track i{height:100%;background:var(--green);display:block;transition:.3s}
 .drill-grid{display:grid;grid-template-columns:minmax(460px,680px) 340px;gap:55px;align-items:center;justify-content:center}
-.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;box-shadow:0 20px 60px rgba(10,30,22,.2);border-radius:5px;overflow:hidden}
+.board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));aspect-ratio:1;box-shadow:0 20px 60px rgba(10,30,22,.2);border-radius:5px;overflow:hidden}
 .square{border:0;padding:0;position:relative;display:grid;place-items:center;line-height:1}
 .square.light{background:var(--light)}
 .square.dark{background:var(--dark)}

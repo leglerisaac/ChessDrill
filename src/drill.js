@@ -33,6 +33,10 @@ export function weightedPick(items, stats = {}, random = Math.random) {
   return items.at(-1);
 }
 
+export function eligibleSelectedLines(lines, selectedIds, eligibleIds) {
+  return lines.filter(line => selectedIds.has(line.id) && eligibleIds.has(line.id));
+}
+
 export function parseMove(chess, from, to) {
   const moves = chess.moves({ square: from, verbose: true });
   return moves.find(move => move.to === to && (!move.promotion || move.promotion === 'q')) || null;

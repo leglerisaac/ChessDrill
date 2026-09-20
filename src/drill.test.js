@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { allLines } from './openings.js';
-import { createDrill, linePositions, weightedPick } from './drill.js';
+import { createDrill, eligibleSelectedLines, linePositions, weightedPick } from './drill.js';
 
 describe('opening data', () => {
   it('contains only legal move sequences', () => {
@@ -14,5 +14,11 @@ describe('opening data', () => {
     const items = [{ id:'mastered' }, { id:'new' }];
     const picked = weightedPick(items, { mastered:{attempts:10,correct:10} }, () => .99);
     expect(items).toContain(picked);
+  });
+  it('does not schedule selected lines that were purged or hidden', () => {
+    const lines = [{ id:'active' }, { id:'hidden' }];
+    const selected = new Set(['active', 'hidden', 'purged']);
+    const eligible = new Set(['active']);
+    expect(eligibleSelectedLines(lines, selected, eligible)).toEqual([{ id:'active' }]);
   });
 });

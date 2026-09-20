@@ -4,7 +4,7 @@ ChessDrill is a focused, browser-based chess opening trainer. Choose exact varia
 
 ## Features
 
-- 149 opening families with 3,815 individually selectable named lines across ECO A00–E99
+- 149 opening families with 3,723 individually selectable named lines across ECO A00–E99
 - Fine-grained line selection and maximum-depth control
 - Search, ECO/name/variation-count sorting, and White/Black opening-focus filters
 - White, Black, or repertoire-side practice
@@ -36,7 +36,7 @@ Opening data is stored in `src/openings.js`, making it straightforward to expand
 
 ## Opening data
 
-The bundled catalog is generated from the public-domain [`lichess-org/chess-openings`](https://github.com/lichess-org/chess-openings) dataset (CC0). To regenerate it after downloading that repository:
+The bundled catalog is generated from the 3,815 public-domain records in [`lichess-org/chess-openings`](https://github.com/lichess-org/chess-openings) (CC0). Duplicate truncated main lines are consolidated so every opening family has exactly one main line. To regenerate it after downloading that repository:
 
 ```bash
 node scripts/generate-openings.mjs path/to/chess-openings/{a,b,c,d,e}.tsv

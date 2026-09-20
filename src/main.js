@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { OPENINGS, allLines } from './openings.js';
-import { createDrill, eligibleSelectedLines, parseMove, weightedPick } from './drill.js';
+import { chooseTheoryMove, createDrill, eligibleSelectedLines, parseMove, theoryOptions, weightedPick } from './drill.js';
 import './styles.css';
 
 const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
@@ -34,15 +34,17 @@ const state = {
   query: '',
   level: saved.level || 'beginner',
   showShortLines: saved.showShortLines || false,
+  challengeDifficulty: saved.challengeDifficulty || 'common',
   orientation: 'white',
   session: null,
+  challenge: null,
   selectedSquare: null,
   message: '',
   hint: false,
 };
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly, focus:state.focus, sort:state.sort, level:state.level, showShortLines:state.showShortLines }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly, focus:state.focus, sort:state.sort, level:state.level, showShortLines:state.showShortLines, challengeDifficulty:state.challengeDifficulty }));
 }
 
 function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -67,10 +69,27 @@ function openingForLevel(opening) {
 
 function levelCatalog() { return OPENINGS.map(openingForLevel).filter(Boolean); }
 
+function challengeLines(difficulty = state.challengeDifficulty) {
+  const allowed = difficulty === 'common' ? BEGINNER_FAMILIES : difficulty === 'varied' ? INTERMEDIATE_FAMILIES : null;
+  const perFamily = difficulty === 'common' ? 10 : difficulty === 'varied' ? 28 : Infinity;
+  return OPENINGS.filter(opening=>!allowed || allowed.has(opening.name)).flatMap(opening =>
+    opening.lines.filter(line=>line.moves.length >= 8).sort((a,b)=>a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,perFamily).map(line=>({ ...line, openingId:opening.id, openingName:opening.name }))
+  );
+}
+
+function challengeSetupView() {
+  const configs = {
+    common:{title:'Common',subtitle:'Mainstream replies',body:'The opponent favors familiar openings and the most documented continuations.',count:challengeLines('common').length},
+    varied:{title:'Varied',subtitle:'Broader theory',body:'More opening families and sidelines, with occasional less-common responses.',count:challengeLines('varied').length},
+    wild:{title:'Unpredictable',subtitle:'Full catalog',body:'Any documented opening or reply can appear, with rare branches weighted equally.',count:challengeLines('wild').length},
+  };
+  return appShell(`<main class="challenge-setup page"><button class="back" data-action="home">← Back to repertoire</button><section class="challenge-intro"><p class="eyebrow">REAL-GAME PRACTICE</p><h1>Theory Challenge</h1><p>You get a random color. Play any move that stays inside documented opening theory while your opponent chooses its own theoretical replies. There is no preselected script—the position determines which branches remain possible.</p></section><section class="difficulty-picker"><div class="section-heading"><div><p class="eyebrow">OPPONENT DIFFICULTY</p><h2>How unpredictable should it be?</h2></div></div><div class="difficulty-grid">${Object.entries(configs).map(([id,config])=>`<button class="${state.challengeDifficulty===id?'active':''}" data-action="challenge-difficulty" data-id="${id}"><span class="difficulty-icon">${id==='common'?'♙':id==='varied'?'♞':'♛'}</span><b>${config.title}</b><small>${config.subtitle}</small><p>${config.body}</p><em>${config.count.toLocaleString()} eligible theory lines</em></button>`).join('')}</div><div class="challenge-start"><p><b>Each round randomizes your color.</b><br>The challenge ends after ${state.challengeDifficulty==='common'?5:state.challengeDifficulty==='varied'?7:9} full moves or when the documented branch ends.</p><button class="primary" data-action="start-challenge">Start challenge →</button></div></section></main>`);
+}
+
 function appShell(content) {
   const total = Object.values(state.stats).reduce((sum, s) => sum + s.attempts, 0);
   const correct = Object.values(state.stats).reduce((sum, s) => sum + s.correct, 0);
-  return `<header class="topbar"><button class="brand" data-action="home"><span class="brand-mark">♞</span><span>Chess<span>Drill</span></span></button><nav><button class="nav-link ${state.screen==='library'?'active':''}" data-action="home">Repertoire</button><button class="nav-link ${state.screen==='progress'?'active':''}" data-action="progress">Progress</button></nav><div class="streak"><span>◆</span> ${correct}/${total || 0} moves</div></header>${content}`;
+  return `<header class="topbar"><button class="brand" data-action="home"><span class="brand-mark">♞</span><span>Chess<span>Drill</span></span></button><nav><button class="nav-link ${state.screen==='library'?'active':''}" data-action="home">Repertoire</button><button class="nav-link ${state.screen.startsWith('challenge')?'active':''}" data-action="challenge">Theory Challenge</button><button class="nav-link ${state.screen==='progress'?'active':''}" data-action="progress">Progress</button></nav><div class="streak"><span>◆</span> ${correct}/${total || 0} moves</div></header>${content}`;
 }
 
 function libraryView() {
@@ -143,13 +162,53 @@ function finishLine() {
   save();
 }
 
+function startChallenge() {
+  const lines = challengeLines();
+  const color = Math.random() < .5 ? 'white' : 'black';
+  const targetPly = state.challengeDifficulty === 'common' ? 10 : state.challengeDifficulty === 'varied' ? 14 : 18;
+  state.challenge = { chess:new Chess(), candidates:lines, color, cursor:0, targetPly, correct:0, mistakes:0, complete:false, busy:color==='black', lastMove:null, openingName:'Unknown opening' };
+  state.session=null; state.orientation=color; state.selectedSquare=null; state.message=''; state.hint=false; state.screen='challenge-play';
+  render();
+  if (color === 'black') window.setTimeout(advanceChallengeOpponent, REPLY_PAUSE_MS);
+}
+
+function updateChallengeOpening(challenge) {
+  const names = [...new Set(challenge.candidates.map(line=>line.openingName))];
+  challenge.openingName = names.length === 1 ? names[0] : names.length < 4 ? names.join(' / ') : `${names.length} possible openings`;
+}
+
+async function advanceChallengeOpponent() {
+  const challenge=state.challenge;
+  if (!challenge || challenge.complete) return;
+  const options=theoryOptions(challenge.candidates,challenge.cursor);
+  const choice=chooseTheoryMove(options,state.challengeDifficulty);
+  if (!choice) return finishChallenge('Theory branch complete');
+  const move=challenge.chess.moves({verbose:true}).find(candidate=>candidate.san===choice.san);
+  if (!move) return finishChallenge('Theory branch complete');
+  challenge.busy=true;
+  await animateMove(move.from,move.to);
+  if(state.challenge!==challenge)return;
+  challenge.chess.move(choice.san);challenge.candidates=choice.candidates;challenge.cursor++;challenge.lastMove={from:move.from,to:move.to};challenge.busy=false;state.hint=false;updateChallengeOpening(challenge);render();
+  if(challenge.cursor>=challenge.targetPly)return finishChallenge('Target depth reached');
+  if(!theoryOptions(challenge.candidates,challenge.cursor).size)return finishChallenge('Theory branch complete');
+}
+
+function finishChallenge(reason) {
+  const challenge=state.challenge;if(!challenge||challenge.complete)return;
+  challenge.complete=true;challenge.busy=false;challenge.reason=reason;render();
+}
+
 function boardHtml(chess, orientation) {
   const board=chess.board();
   const ranks=orientation==='white'?[0,1,2,3,4,5,6,7]:[7,6,5,4,3,2,1,0];
   const files=orientation==='white'?[0,1,2,3,4,5,6,7]:[7,6,5,4,3,2,1,0];
   const selected=state.selectedSquare;
   const legal=selected ? chess.moves({square:selected,verbose:true}).map(m=>m.to) : [];
-  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=state.hint && state.session?.drill.positions[state.session.cursor]?.from===square; const lastFrom=state.session?.lastMove?.from===square; const lastTo=state.session?.lastMove?.to===square; const pieceCode=piece?`${piece.color}${piece.type.toUpperCase()}`:''; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''} ${lastFrom?'last-from':''} ${lastTo?'last-to':''}" data-square="${square}" aria-label="${square}${piece?' '+(piece.color==='w'?'white ':'black ')+PIECE_NAMES[piece.type]:''}">${piece?`<img class="piece" draggable="false" src="https://lichess1.org/assets/piece/cburnett/${pieceCode}.svg" alt="${piece.color==='w'?'White':'Black'} ${PIECE_NAMES[piece.type]}">`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
+  const active=state.screen==='challenge-play'?state.challenge:state.session;
+  let hintSquares=[];
+  if(state.hint&&state.screen==='challenge-play'&&state.challenge){const sans=new Set(theoryOptions(state.challenge.candidates,state.challenge.cursor).keys());hintSquares=chess.moves({verbose:true}).filter(move=>sans.has(move.san)).map(move=>move.from);}
+  else if(state.hint&&state.session)hintSquares=[state.session.drill.positions[state.session.cursor]?.from];
+  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=hintSquares.includes(square); const lastFrom=active?.lastMove?.from===square; const lastTo=active?.lastMove?.to===square; const pieceCode=piece?`${piece.color}${piece.type.toUpperCase()}`:''; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''} ${lastFrom?'last-from':''} ${lastTo?'last-to':''}" data-square="${square}" aria-label="${square}${piece?' '+(piece.color==='w'?'white ':'black ')+PIECE_NAMES[piece.type]:''}">${piece?`<img class="piece" draggable="false" src="https://lichess1.org/assets/piece/cburnett/${pieceCode}.svg" alt="${piece.color==='w'?'White':'Black'} ${PIECE_NAMES[piece.type]}">`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
 }
 
 function delay(ms) { return new Promise(resolve => window.setTimeout(resolve, ms)); }
@@ -175,6 +234,13 @@ function drillView() {
   const s=state.session;
   const progress=Math.round(s.cursor/Math.max(1,s.drill.positions.length)*100);
   return appShell(`<main class="drill-page"><section class="drill-head"><button class="back" data-action="home">← Exit drill</button><div class="drill-meta"><span>${esc(s.drill.line.openingName)}</span><b>${esc(s.drill.line.name)}</b></div><div class="progress-track"><i style="width:${progress}%"></i></div><span>${s.cursor}/${s.drill.positions.length} ply</span></section><section class="drill-grid"><div class="board-wrap">${boardHtml(s.chess,state.orientation)}</div><aside class="coach ${s.complete?'complete':''}">${s.complete?`<div class="result-icon">✓</div><p class="eyebrow">LINE COMPLETE</p><h2>${s.mistakes?'Nice recovery.':'Clean run.'}</h2><p>You played ${s.userMoves} move${s.userMoves===1?'':'s'} with ${s.mistakes} mistake${s.mistakes===1?'':'s'}.</p><button class="primary wide" data-action="next">Drill another line →</button><button class="secondary wide" data-action="home">Back to repertoire</button>`:`<p class="eyebrow">YOUR MOVE · ${s.drill.color.toUpperCase()}</p><h2>Find the repertoire move.</h2><p class="sequence">${s.drill.line.moves.slice(0,s.cursor).map((m,i)=>`<span class="${i===s.cursor-1?'last':''}">${m}</span>`).join(' ') || 'Opening position'}</p><div class="feedback ${state.message?'show':''}">${state.message||'Select a piece, then its destination square.'}</div><button class="secondary wide" data-action="hint">${state.hint?'Hint active — piece highlighted':'Show hint'}</button><button class="text-button" data-action="reveal">Reveal & continue</button>`}</aside></section></main>`);
+}
+
+function challengeView() {
+  const c=state.challenge;
+  const progress=Math.min(100,Math.round(c.cursor/c.targetPly*100));
+  const choices=theoryOptions(c.candidates,c.cursor).size;
+  return appShell(`<main class="drill-page challenge-play"><section class="drill-head"><button class="back" data-action="challenge">← Exit challenge</button><div class="drill-meta"><span>THEORY CHALLENGE · ${state.challengeDifficulty.toUpperCase()}</span><b>${esc(c.openingName)}</b></div><div class="progress-track"><i style="width:${progress}%"></i></div><span>${c.cursor}/${c.targetPly} ply</span></section><section class="drill-grid"><div class="board-wrap">${boardHtml(c.chess,state.orientation)}</div><aside class="coach ${c.complete?'complete':''}">${c.complete?`<div class="result-icon">✓</div><p class="eyebrow">CHALLENGE COMPLETE</p><h2>${c.mistakes?'You adapted.':'Theory held.'}</h2><p>${esc(c.reason)}. You found ${c.correct} theoretical move${c.correct===1?'':'s'} with ${c.mistakes} miss${c.mistakes===1?'':'es'} as ${c.color}.</p><button class="primary wide" data-action="start-challenge">New random challenge →</button><button class="secondary wide" data-action="challenge">Change difficulty</button>`:`<p class="eyebrow">YOU ARE ${c.color.toUpperCase()}</p><h2>Stay inside theory.</h2><p class="challenge-context">The opponent chooses its own continuation. More than one response may be correct.</p><div class="challenge-badges"><span>${c.candidates.length} matching lines</span><span>${choices} legal theory ${choices===1?'move':'moves'}</span></div><div class="feedback ${state.message?'show':''}">${state.message||'Play any documented move from this position.'}</div><button class="secondary wide" data-action="hint">${state.hint?'Hint active — valid pieces highlighted':'Show piece hint'}</button>`}</aside></section></main>`);
 }
 
 function progressView() {
@@ -207,12 +273,33 @@ async function tryMove(square) {
   }
 }
 
+async function tryChallengeMove(square) {
+  const c=state.challenge;if(!c||c.complete||c.busy)return;
+  const piece=c.chess.get(square),turn=c.chess.turn();
+  if(!state.selectedSquare){if(piece?.color===turn){state.selectedSquare=square;state.message='';render();}return;}
+  if(piece?.color===turn){state.selectedSquare=square;render();return;}
+  const move=parseMove(c.chess,state.selectedSquare,square);
+  if(!move){state.selectedSquare=null;state.message='That piece cannot move there.';render();return;}
+  const options=theoryOptions(c.candidates,c.cursor);
+  const matching=options.get(move.san);
+  if(!matching){c.mistakes++;state.selectedSquare=null;state.message='Legal move, but it leaves the documented theory in this challenge. Try another continuation.';state.hint=true;render();return;}
+  c.busy=true;state.selectedSquare=null;state.message='Theory matched.';state.hint=false;render();
+  await animateMove(move.from,move.to);if(state.challenge!==c)return;
+  c.chess.move(move.san);c.candidates=matching;c.cursor++;c.correct++;c.lastMove={from:move.from,to:move.to};updateChallengeOpening(c);render();
+  if(c.cursor>=c.targetPly)return finishChallenge('Target depth reached');
+  if(!theoryOptions(c.candidates,c.cursor).size)return finishChallenge('Theory branch complete');
+  await delay(REPLY_PAUSE_MS);if(state.challenge===c)advanceChallengeOpponent();
+}
+
 function handleClick(event) {
-  const square=event.target.closest('[data-square]'); if (square) return tryMove(square.dataset.square);
+  const square=event.target.closest('[data-square]'); if (square) return state.screen==='challenge-play'?tryChallengeMove(square.dataset.square):tryMove(square.dataset.square);
   const el=event.target.closest('[data-action]'); if (!el) return;
   const action=el.dataset.action, id=el.dataset.id;
-  if(action==='home'){state.screen='library';state.session=null;}
+  if(action==='home'){state.screen='library';state.session=null;state.challenge=null;}
   if(action==='progress') state.screen='progress';
+  if(action==='challenge'){state.screen='challenge-setup';state.session=null;state.challenge=null;state.selectedSquare=null;state.message='';state.hint=false;}
+  if(action==='challenge-difficulty'){state.challengeDifficulty=id;save();}
+  if(action==='start-challenge')return startChallenge();
   if(action==='expand'){state.expanded.has(id)?state.expanded.delete(id):state.expanded.add(id);save();}
   if(action==='select-all'){allLines().forEach(l=>state.selected.add(l.id));save();}
   if(action==='select-visible'){levelCatalog().forEach(opening=>opening.lines.forEach(line=>state.selected.add(line.id)));save();}
@@ -242,5 +329,5 @@ function handleChange(event) {
   }
 }
 
-function render(){document.querySelector('#app').innerHTML=state.screen==='drill'?drillView():state.screen==='progress'?progressView():libraryView();}
+function render(){document.querySelector('#app').innerHTML=state.screen==='drill'?drillView():state.screen==='challenge-play'?challengeView():state.screen==='challenge-setup'?challengeSetupView():state.screen==='progress'?progressView():libraryView();}
 document.addEventListener('click',handleClick);document.addEventListener('change',handleChange);document.addEventListener('input',handleChange);render();

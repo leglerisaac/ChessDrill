@@ -68,6 +68,24 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .short-lines-toggle.active span{background:var(--green);border-color:var(--green)}
 .result-count{margin:0 0 13px;color:var(--muted);font-size:11px}
 .no-results{text-align:center;padding:60px 20px;background:#fff;border:1px solid var(--line);border-radius:13px;color:var(--muted)}
+.challenge-intro{max-width:780px;padding:52px 0 44px}
+.challenge-intro h1{font:64px 'DM Serif Display';margin:0 0 18px;letter-spacing:-.03em}
+.challenge-intro>p:last-child{font-size:18px;line-height:1.65;color:var(--muted);margin:0}
+.difficulty-picker{border-top:1px solid #d5dbd6;padding-top:36px}
+.difficulty-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.difficulty-grid>button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:24px;text-align:left;color:var(--ink);display:flex;flex-direction:column;align-items:flex-start;min-height:250px;transition:.2s}
+.difficulty-grid>button:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.difficulty-grid>button.active{border:2px solid var(--green);padding:23px;background:#f7fbf8}
+.difficulty-icon{width:44px;height:44px;border-radius:12px;background:#e6f0eb;color:var(--green);display:grid;place-items:center;font-size:28px;margin-bottom:20px}
+.difficulty-grid b{font:26px 'DM Serif Display'}
+.difficulty-grid small{font-weight:700;color:var(--green);margin-top:3px}
+.difficulty-grid p{color:var(--muted);font-size:13px;line-height:1.55;flex:1}
+.difficulty-grid em{font-style:normal;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.challenge-start{margin-top:22px;background:var(--ink);color:#fff;border-radius:15px;padding:22px 25px;display:flex;align-items:center;justify-content:space-between;gap:25px}
+.challenge-start p{margin:0;color:#aeb9b5;font-size:13px;line-height:1.5}.challenge-start b{color:#fff}
+.challenge-context{color:var(--muted);font-size:13px;line-height:1.5}
+.challenge-badges{display:flex;flex-wrap:wrap;gap:7px;margin:18px 0}
+.challenge-badges span{background:#edf3ef;color:var(--green);border-radius:20px;padding:6px 10px;font-size:10px;font-weight:700}
 .opening-card{background:var(--card);border:1px solid var(--line);border-radius:13px;margin-bottom:12px;overflow:hidden;transition:.2s}
 .opening-card:hover{box-shadow:var(--shadow)}
 .opening-card.expanded{border-color:#b9cec5}
@@ -151,9 +169,11 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .empty>span{font-size:55px;color:var(--green)}
 .empty p{color:var(--muted)}
 
-@media(max-width:800px){.topbar{padding:0 16px;gap:12px}
-.topbar nav{display:none}
-.streak{font-size:11px}
+@media(max-width:800px){.topbar{padding:0 10px;gap:7px}
+.topbar nav{display:flex;gap:0;min-width:0}
+.nav-link{padding:0 6px;font-size:10px;white-space:nowrap}
+.nav-link.active:after{left:5px;right:5px}
+.streak{display:none}
 .page{padding:30px 16px 100px}
 .hero{grid-template-columns:1fr;padding-top:10px;gap:25px}
 .hero h1{font-size:46px}
@@ -164,6 +184,8 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .recommended{padding-top:30px}
 .recommended>.section-heading>p{display:none}
 .recommendation-grid{grid-template-columns:1fr}
+.challenge-intro{padding:30px 0}.challenge-intro h1{font-size:46px}
+.difficulty-grid{grid-template-columns:1fr}.difficulty-grid>button{min-height:0}.challenge-start{align-items:stretch;flex-direction:column}
 .workspace{grid-template-columns:1fr;padding-top:30px}
 .filters{display:grid;grid-template-columns:1fr 1fr;gap:15px}
 .filters .label,.tip{display:none}
@@ -190,3 +212,4 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .progress-row{grid-template-columns:1fr 80px 40px}
 .progress-list{padding:16px}
 }
+@media(max-width:520px){.brand>span:last-child{display:none}.brand-mark{width:34px;height:34px}.topbar{gap:4px}.nav-link{padding:0 5px;font-size:9px}}

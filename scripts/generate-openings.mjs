@@ -28,7 +28,7 @@ const openings = [...groups.entries()].map(([name, lines]) => {
     mainLine = existingMainLines.reduce((longest, line) => line.moves.length > longest.moves.length ? line : longest);
     variationLines = lines.filter(line => line.name !== 'Main line');
   } else {
-    const foundation = lines.reduce((shortest, line) => line.moves.length < shortest.moves.length ? line : shortest);
+    const foundation = lines.reduce((longest, line) => line.moves.length > longest.moves.length ? line : longest);
     mainLine = { ...foundation, name:'Main line' };
     variationLines = lines.filter(line => line !== foundation);
   }

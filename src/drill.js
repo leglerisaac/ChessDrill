@@ -37,6 +37,29 @@ export function eligibleSelectedLines(lines, selectedIds, eligibleIds) {
   return lines.filter(line => selectedIds.has(line.id) && eligibleIds.has(line.id));
 }
 
+export function theoryOptions(candidates, cursor) {
+  const options = new Map();
+  for (const line of candidates) {
+    const san = line.moves[cursor];
+    if (!san) continue;
+    if (!options.has(san)) options.set(san, []);
+    options.get(san).push(line);
+  }
+  return options;
+}
+
+export function chooseTheoryMove(options, difficulty = 'common', random = Math.random) {
+  const entries = [...options.entries()];
+  if (!entries.length) return null;
+  const weights = entries.map(([, lines]) => difficulty === 'wild' ? 1 : difficulty === 'varied' ? Math.sqrt(lines.length) : lines.length);
+  let cursor = random() * weights.reduce((sum, weight) => sum + weight, 0);
+  for (let index = 0; index < entries.length; index += 1) {
+    cursor -= weights[index];
+    if (cursor <= 0) return { san:entries[index][0], candidates:entries[index][1] };
+  }
+  return { san:entries.at(-1)[0], candidates:entries.at(-1)[1] };
+}
+
 export function parseMove(chess, from, to) {
   const moves = chess.moves({ square: from, verbose: true });
   return moves.find(move => move.to === to && (!move.promotion || move.promotion === 'q')) || null;

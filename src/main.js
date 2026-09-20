@@ -8,13 +8,17 @@ const MOVE_MS = 240;
 const REPLY_PAUSE_MS = 380;
 const STORAGE_KEY = 'chessdrill-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+const validLineIds = new Set(allLines().map(line => line.id));
 const state = {
   screen: 'library',
-  selected: new Set(saved.selected || ['italian-main', 'italian-quiet', 'qg-qgd']),
+  selected: new Set((saved.selected || []).filter(id => validLineIds.has(id))),
   expanded: new Set(saved.expanded || ['italian']),
   stats: saved.stats || {},
   side: saved.side || 'repertoire',
   maxPly: saved.maxPly || 14,
+  focus: saved.focus || 'all',
+  sort: saved.sort || 'eco',
+  query: '',
   orientation: 'white',
   session: null,
   selectedSquare: null,
@@ -23,7 +27,7 @@ const state = {
 };
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly, focus:state.focus, sort:state.sort }));
 }
 
 function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
@@ -37,7 +41,11 @@ function appShell(content) {
 
 function libraryView() {
   const selectedLines = allLines().filter(line => state.selected.has(line.id));
-  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${state.selected.size}</span><small>active lines</small><button class="primary" data-action="start" ${state.selected.size?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="18" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>Lines you miss appear more often. New lines get priority until they stick.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">YOUR REPERTOIRE</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-all">Select all</button><button data-action="clear">Clear</button></div></div><div class="opening-list">${OPENINGS.map(openingCard).join('')}</div></section></section>${selectedLines.length?`<div class="mobile-start"><span>${selectedLines.length} lines selected</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
+  let visible = OPENINGS.filter(opening => state.focus === 'all' || opening.color === state.focus);
+  const query = state.query.trim().toLowerCase();
+  if (query) visible = visible.filter(opening => opening.name.toLowerCase().includes(query) || opening.eco.toLowerCase().includes(query) || opening.lines.some(line => line.name.toLowerCase().includes(query)));
+  visible = [...visible].sort((a,b) => state.sort === 'name' ? a.name.localeCompare(b.name) : state.sort === 'lines' ? b.lines.length-a.lines.length || a.name.localeCompare(b.name) : a.eco.localeCompare(b.eco) || a.name.localeCompare(b.name));
+  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire from 3,815 Lichess opening lines, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${state.selected.size}</span><small>active lines</small><button class="primary" data-action="start" ${state.selected.size?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="30" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>Lines you miss appear more often. New lines get priority until they stick.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">149 OPENING FAMILIES · 3,815 LINES</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-all">Select all</button><button data-action="clear">Clear</button></div></div><div class="catalog-tools"><label class="catalog-search"><span>⌕</span><input id="catalog-search" type="search" value="${esc(state.query)}" placeholder="Search openings, variations, or ECO…"></label><select id="focus" aria-label="Filter by side"><option value="all" ${state.focus==='all'?'selected':''}>All openings</option><option value="white" ${state.focus==='white'?'selected':''}>White to play</option><option value="black" ${state.focus==='black'?'selected':''}>Black to play</option></select><select id="sort" aria-label="Sort openings"><option value="eco" ${state.sort==='eco'?'selected':''}>ECO order</option><option value="name" ${state.sort==='name'?'selected':''}>Name A–Z</option><option value="lines" ${state.sort==='lines'?'selected':''}>Most variations</option></select></div><p class="result-count">Showing ${visible.length} opening ${visible.length===1?'family':'families'}</p><div class="opening-list">${visible.length?visible.map(openingCard).join(''):'<div class="no-results">No openings match those filters.</div>'}</div></section></section>${selectedLines.length?`<div class="mobile-start"><span>${selectedLines.length} lines selected</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
 }
 
 function openingCard(opening) {
@@ -55,7 +63,7 @@ function startSession() {
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;
   const drill = createDrill(line, color, state.maxPly);
   const userTurn = color === 'white' ? 'w' : 'b';
-  state.session = { drill, chess:new Chess(), cursor:0, userMoves:0, mistakes:0, complete:false, busy:drill.positions[0]?.turn !== userTurn };
+  state.session = { drill, chess:new Chess(), cursor:0, userMoves:0, mistakes:0, complete:false, busy:drill.positions[0]?.turn !== userTurn, lastMove:null };
   state.orientation = color;
   state.selectedSquare = null;
   state.message = '';
@@ -74,6 +82,7 @@ async function advanceOpponent() {
     await animateMove(position.from, position.to);
     if (state.session !== s) return;
     s.chess.move(position.san);
+    s.lastMove = { from:position.from, to:position.to };
     s.cursor += 1;
     s.busy = false;
     render();
@@ -97,7 +106,7 @@ function boardHtml(chess, orientation) {
   const files=orientation==='white'?[0,1,2,3,4,5,6,7]:[7,6,5,4,3,2,1,0];
   const selected=state.selectedSquare;
   const legal=selected ? chess.moves({square:selected,verbose:true}).map(m=>m.to) : [];
-  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=state.hint && state.session?.drill.positions[state.session.cursor]?.from===square; const pieceCode=piece?`${piece.color}${piece.type.toUpperCase()}`:''; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''}" data-square="${square}" aria-label="${square}${piece?' '+(piece.color==='w'?'white ':'black ')+PIECE_NAMES[piece.type]:''}">${piece?`<img class="piece" draggable="false" src="https://lichess1.org/assets/piece/cburnett/${pieceCode}.svg" alt="${piece.color==='w'?'White':'Black'} ${PIECE_NAMES[piece.type]}">`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
+  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=state.hint && state.session?.drill.positions[state.session.cursor]?.from===square; const lastFrom=state.session?.lastMove?.from===square; const lastTo=state.session?.lastMove?.to===square; const pieceCode=piece?`${piece.color}${piece.type.toUpperCase()}`:''; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''} ${lastFrom?'last-from':''} ${lastTo?'last-to':''}" data-square="${square}" aria-label="${square}${piece?' '+(piece.color==='w'?'white ':'black ')+PIECE_NAMES[piece.type]:''}">${piece?`<img class="piece" draggable="false" src="https://lichess1.org/assets/piece/cburnett/${pieceCode}.svg" alt="${piece.color==='w'?'White':'Black'} ${PIECE_NAMES[piece.type]}">`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
 }
 
 function delay(ms) { return new Promise(resolve => window.setTimeout(resolve, ms)); }
@@ -120,9 +129,9 @@ function animateMove(from, to) {
 }
 
 function drillView() {
-  const s=state.session; const p=s.drill.positions[s.cursor];
+  const s=state.session;
   const progress=Math.round(s.cursor/Math.max(1,s.drill.positions.length)*100);
-  return appShell(`<main class="drill-page"><section class="drill-head"><button class="back" data-action="home">← Exit drill</button><div class="drill-meta"><span>${esc(s.drill.line.openingName)}</span><b>${esc(s.drill.line.name)}</b></div><div class="progress-track"><i style="width:${progress}%"></i></div><span>${s.cursor}/${s.drill.positions.length} ply</span></section><section class="drill-grid"><div class="board-wrap">${boardHtml(s.chess,state.orientation)}</div><aside class="coach ${s.complete?'complete':''}">${s.complete?`<div class="result-icon">✓</div><p class="eyebrow">LINE COMPLETE</p><h2>${s.mistakes?'Nice recovery.':'Clean run.'}</h2><p>You played ${s.userMoves} move${s.userMoves===1?'':'s'} with ${s.mistakes} mistake${s.mistakes===1?'':'s'}.</p><button class="primary wide" data-action="next">Drill another line →</button><button class="secondary wide" data-action="home">Back to repertoire</button>`:`<p class="eyebrow">YOUR MOVE · ${s.drill.color.toUpperCase()}</p><h2>Find the repertoire move.</h2><p class="sequence">${s.drill.line.moves.slice(0,s.cursor).map((m,i)=>`<span class="${i===s.cursor-1?'last':''}">${m}</span>`).join(' ') || 'Opening position'}</p><div class="feedback ${state.message?'show':''}">${state.message||'Select a piece, then its destination square.'}</div><button class="secondary wide" data-action="hint">${state.hint?'Hint: '+p?.san:'Show hint'}</button><button class="text-button" data-action="reveal">Reveal & continue</button>`}</aside></section></main>`);
+  return appShell(`<main class="drill-page"><section class="drill-head"><button class="back" data-action="home">← Exit drill</button><div class="drill-meta"><span>${esc(s.drill.line.openingName)}</span><b>${esc(s.drill.line.name)}</b></div><div class="progress-track"><i style="width:${progress}%"></i></div><span>${s.cursor}/${s.drill.positions.length} ply</span></section><section class="drill-grid"><div class="board-wrap">${boardHtml(s.chess,state.orientation)}</div><aside class="coach ${s.complete?'complete':''}">${s.complete?`<div class="result-icon">✓</div><p class="eyebrow">LINE COMPLETE</p><h2>${s.mistakes?'Nice recovery.':'Clean run.'}</h2><p>You played ${s.userMoves} move${s.userMoves===1?'':'s'} with ${s.mistakes} mistake${s.mistakes===1?'':'s'}.</p><button class="primary wide" data-action="next">Drill another line →</button><button class="secondary wide" data-action="home">Back to repertoire</button>`:`<p class="eyebrow">YOUR MOVE · ${s.drill.color.toUpperCase()}</p><h2>Find the repertoire move.</h2><p class="sequence">${s.drill.line.moves.slice(0,s.cursor).map((m,i)=>`<span class="${i===s.cursor-1?'last':''}">${m}</span>`).join(' ') || 'Opening position'}</p><div class="feedback ${state.message?'show':''}">${state.message||'Select a piece, then its destination square.'}</div><button class="secondary wide" data-action="hint">${state.hint?'Hint active — piece highlighted':'Show hint'}</button><button class="text-button" data-action="reveal">Reveal & continue</button>`}</aside></section></main>`);
 }
 
 function progressView() {
@@ -146,12 +155,12 @@ async function tryMove(square) {
     s.busy=true; state.selectedSquare=null; state.message='Correct — keep going.'; state.hint=false; render();
     await animateMove(move.from, move.to);
     if (state.session !== s) return;
-    s.chess.move(move.san); s.cursor+=1; s.userMoves+=1; render();
+    s.chess.move(move.san); s.lastMove={from:move.from,to:move.to}; s.cursor+=1; s.userMoves+=1; render();
     if (s.cursor >= s.drill.positions.length) { s.busy=false; finishLine(); render(); return; }
     await delay(REPLY_PAUSE_MS);
     if (state.session === s) advanceOpponent();
   } else {
-    s.mistakes+=1; s.userMoves+=1; state.selectedSquare=null; state.message=`Not in this line. Look for ${expected.san}.`; state.hint=true; render();
+    s.mistakes+=1; s.userMoves+=1; state.selectedSquare=null; state.message='Not the repertoire move. The correct piece is highlighted.'; state.hint=true; render();
   }
 }
 
@@ -167,7 +176,7 @@ function handleClick(event) {
   if(action==='toggle-opening'){const o=OPENINGS.find(x=>x.id===id);const all=o.lines.every(l=>state.selected.has(l.id));o.lines.forEach(l=>all?state.selected.delete(l.id):state.selected.add(l.id));save();}
   if(action==='start'||action==='next') return startSession();
   if(action==='hint') state.hint=true;
-  if(action==='reveal'){const s=state.session;if(s.busy)return;const p=s.drill.positions[s.cursor];s.busy=true;state.message='Move revealed.';state.hint=false;render();animateMove(p.from,p.to).then(async()=>{if(state.session!==s)return;s.chess.move(p.san);s.cursor++;s.userMoves++;s.mistakes++;render();await delay(REPLY_PAUSE_MS);if(state.session===s)advanceOpponent();});return;}
+  if(action==='reveal'){const s=state.session;if(s.busy)return;const p=s.drill.positions[s.cursor];s.busy=true;state.message='Move revealed.';state.hint=false;render();animateMove(p.from,p.to).then(async()=>{if(state.session!==s)return;s.chess.move(p.san);s.lastMove={from:p.from,to:p.to};s.cursor++;s.userMoves++;s.mistakes++;render();await delay(REPLY_PAUSE_MS);if(state.session===s)advanceOpponent();});return;}
   if(action==='reset-stats'&&confirm('Reset all ChessDrill progress?')){state.stats={};save();}
   render();
 }
@@ -176,6 +185,14 @@ function handleChange(event) {
   if(event.target.matches('[data-line]')){event.target.checked?state.selected.add(event.target.dataset.line):state.selected.delete(event.target.dataset.line);save();render();}
   if(event.target.id==='side'){state.side=event.target.value;save();}
   if(event.target.id==='depth'){state.maxPly=Number(event.target.value);save();document.querySelector('#depthLabel').textContent=`${state.maxPly} ply`;}
+  if(event.target.id==='focus'){state.focus=event.target.value;save();render();}
+  if(event.target.id==='sort'){state.sort=event.target.value;save();render();}
+  if(event.target.id==='catalog-search'){
+    state.query=event.target.value;
+    const caret=event.target.selectionStart;
+    render();
+    requestAnimationFrame(()=>{const input=document.querySelector('#catalog-search');if(input){input.focus();input.setSelectionRange(caret,caret);}});
+  }
 }
 
 function render(){document.querySelector('#app').innerHTML=state.screen==='drill'?drillView():state.screen==='progress'?progressView():libraryView();}

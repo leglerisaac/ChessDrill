@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { OPENINGS, allLines } from './openings.js';
-import { createDrill, parseMove, weightedPick } from './drill.js';
+import { createDrill, parseMove, playableLines, weightedPick } from './drill.js';
 import './styles.css';
 
 const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
@@ -98,11 +98,8 @@ function openingCard(opening) {
 }
 
 function startSession() {
-  const available = allLines().filter(line => {
-    if (!state.selected.has(line.id)) return false;
-    const color = state.side === 'repertoire' ? line.repertoireColor : state.side;
-    return createDrill(line, color, state.maxPly).prompts.length > 0;
-  });
+  const selected = allLines().filter(line => state.selected.has(line.id));
+  const available = playableLines(selected, state.side, state.maxPly);
   const line = weightedPick(available, state.stats);
   if (!line) return;
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;

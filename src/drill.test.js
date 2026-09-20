@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { allLines } from './openings.js';
-import { createDrill, linePositions, weightedPick } from './drill.js';
+import { createDrill, linePositions, playableLines, weightedPick } from './drill.js';
 
 describe('opening data', () => {
   it('contains only legal move sequences', () => {
@@ -16,10 +16,11 @@ describe('opening data', () => {
     expect(picked.id).toBe('new');
   });
 
-  it('does not create prompts for the opposite side of a one-ply line', () => {
+  it('filters lines with no prompts for the selected side', () => {
     const line = allLines().find(candidate => candidate.moves.length === 1);
     expect(line).toBeDefined();
-    expect(createDrill(line, line.repertoireColor === 'white' ? 'black' : 'white').prompts).toHaveLength(0);
+    expect(playableLines([line], line.repertoireColor === 'white' ? 'black' : 'white', 14)).toHaveLength(0);
+    expect(playableLines([line], line.repertoireColor, 14)).toHaveLength(1);
   });
 
   it('reuses the memoized flattened line catalog', () => {

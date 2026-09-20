@@ -18,6 +18,13 @@ export function createDrill(line, color = line.repertoireColor, maxPly = line.mo
   return { line, color, positions, prompts };
 }
 
+export function playableLines(lines, side = 'repertoire', maxPly) {
+  return lines.filter(line => {
+    const color = side === 'repertoire' ? line.repertoireColor : side;
+    return createDrill(line, color, maxPly).prompts.length > 0;
+  });
+}
+
 export function weightedPick(items, stats = {}, random = Math.random) {
   if (!items.length) return null;
   const weights = items.map(item => {

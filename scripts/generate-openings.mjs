@@ -21,8 +21,20 @@ for (const row of rows) {
 
 const openings = [...groups.entries()].map(([name, lines]) => {
   const color = blackFocus.test(name) ? 'black' : 'white';
+  const existingMainLines = lines.filter(line => line.name === 'Main line');
+  let mainLine;
+  let variationLines;
+  if (existingMainLines.length) {
+    mainLine = existingMainLines.reduce((longest, line) => line.moves.length > longest.moves.length ? line : longest);
+    variationLines = lines.filter(line => line.name !== 'Main line');
+  } else {
+    const foundation = lines.reduce((shortest, line) => line.moves.length < shortest.moves.length ? line : shortest);
+    mainLine = { ...foundation, name:'Main line' };
+    variationLines = lines.filter(line => line !== foundation);
+  }
+  const curatedLines = [mainLine, ...variationLines];
   const used = new Map();
-  const normalized = lines.map((line, index) => {
+  const normalized = curatedLines.map(line => {
     const base = `${slug(name)}-${slug(line.name) || 'main'}`;
     const count = used.get(base) || 0;
     used.set(base, count + 1);
@@ -38,4 +50,4 @@ const openings = [...groups.entries()].map(([name, lines]) => {
 
 const output = `// Generated from lichess-org/chess-openings (CC0). Do not edit by hand.\nexport const OPENINGS = ${JSON.stringify(openings)};\n\nexport const allLines = () => OPENINGS.flatMap(opening => opening.lines.map(line => ({ ...line, openingId: opening.id, openingName: opening.name, repertoireColor: opening.color })));\n`;
 fs.writeFileSync(new URL('../src/openings.js', import.meta.url), output);
-console.log(`Generated ${openings.length} opening families and ${rows.length} lines.`);
+console.log(`Generated ${openings.length} opening families and ${openings.reduce((sum, opening) => sum + opening.lines.length, 0)} curated lines from ${rows.length} source records.`);

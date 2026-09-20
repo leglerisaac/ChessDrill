@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { OPENINGS, allLines } from './openings.js';
-import { chooseTheoryMove, createDrill, eligibleSelectedLines, parseMove, theoryOptions, weightedPick } from './drill.js';
+import { chooseTheoryMove, createDrill, drillableLines, parseMove, practicedLines, sanitizeStat, theoryOptions, weightedPick } from './drill.js';
 import './styles.css';
 
 const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
@@ -48,7 +48,7 @@ function save() {
 }
 
 function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-function pct(stat) { return stat?.attempts ? Math.round(stat.correct / stat.attempts * 100) : null; }
+function pct(stat) { const s = sanitizeStat(stat); return s.attempts ? Math.round(s.correct / s.attempts * 100) : null; }
 
 function openingForLevel(opening) {
   const keepLine = line => state.showShortLines || line.moves.length >= 8 || line.name === 'Main line';
@@ -87,21 +87,21 @@ function challengeSetupView() {
 }
 
 function appShell(content) {
-  const total = Object.values(state.stats).reduce((sum, s) => sum + s.attempts, 0);
-  const correct = Object.values(state.stats).reduce((sum, s) => sum + s.correct, 0);
+  const totals = Object.values(state.stats).reduce((sum, s) => { const stat = sanitizeStat(s); sum.attempts += stat.attempts; sum.correct += stat.correct; return sum; }, { attempts: 0, correct: 0 });
+  const total = totals.attempts, correct = totals.correct;
   return `<header class="topbar"><button class="brand" data-action="home"><span class="brand-mark">♞</span><span>Chess<span>Drill</span></span></button><nav><button class="nav-link ${state.screen==='library'?'active':''}" data-action="home">Repertoire</button><button class="nav-link ${state.screen.startsWith('challenge')?'active':''}" data-action="challenge">Theory Challenge</button><button class="nav-link ${state.screen==='progress'?'active':''}" data-action="progress">Progress</button></nav><div class="streak"><span>◆</span> ${correct}/${total || 0} moves</div></header>${content}`;
 }
 
 function libraryView() {
   const catalog = levelCatalog();
   const eligibleIds = new Set(catalog.flatMap(opening=>opening.lines.map(line=>line.id)));
-  const selectedLines = eligibleSelectedLines(allLines(), state.selected, eligibleIds);
+  const drillable = drillableLines(allLines(), state.selected, eligibleIds, state.side, state.maxPly);
   const catalogLineCount = catalog.reduce((sum,opening)=>sum+opening.lines.length,0);
   let visible = catalog.filter(opening => state.focus === 'all' || opening.color === state.focus);
   const query = state.query.trim().toLowerCase();
   if (query) visible = visible.filter(opening => opening.name.toLowerCase().includes(query) || opening.eco.toLowerCase().includes(query) || opening.lines.some(line => line.name.toLowerCase().includes(query)));
   visible = [...visible].sort((a,b) => state.sort === 'name' ? a.name.localeCompare(b.name) : state.sort === 'lines' ? b.lines.length-a.lines.length || a.name.localeCompare(b.name) : a.eco.localeCompare(b.eco) || a.name.localeCompare(b.name));
-  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${state.selected.size}</span><small>active lines</small><button class="primary" data-action="start" ${state.selected.size?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="level-panel"><div><p class="eyebrow">STUDY LEVEL</p><h2>How much theory do you want?</h2><p>Lower levels hide rare opening families and deep sidelines. Your existing selections are always preserved.</p></div><div class="level-switch" role="group" aria-label="Study level">${['beginner','intermediate','advanced'].map(level=>`<button class="${state.level===level?'active':''}" data-action="level" data-id="${level}"><b>${level[0].toUpperCase()+level.slice(1)}</b><small>${level==='beginner'?'Core plans':level==='intermediate'?'Broader theory':'Complete catalog'}</small></button>`).join('')}</div></section>${recommendationsView()}<section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="30" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>Lines you miss appear more often. New lines get priority until they stick.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">${catalog.length} OPENING FAMILIES · ${catalogLineCount.toLocaleString()} LINES</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-visible">Select level</button><button data-action="clear">Clear</button></div></div><div class="catalog-tools"><label class="catalog-search"><span>⌕</span><input id="catalog-search" type="search" value="${esc(state.query)}" placeholder="Search openings, variations, or ECO…"></label><select id="focus" aria-label="Filter by side"><option value="all" ${state.focus==='all'?'selected':''}>All openings</option><option value="white" ${state.focus==='white'?'selected':''}>White to play</option><option value="black" ${state.focus==='black'?'selected':''}>Black to play</option></select><select id="sort" aria-label="Sort openings"><option value="eco" ${state.sort==='eco'?'selected':''}>ECO order</option><option value="name" ${state.sort==='name'?'selected':''}>Name A–Z</option><option value="lines" ${state.sort==='lines'?'selected':''}>Most variations</option></select><button class="short-lines-toggle ${state.showShortLines?'active':''}" data-action="toggle-short" aria-pressed="${state.showShortLines}"><span>${state.showShortLines?'✓':''}</span> Show lines under 4 moves</button></div><p class="result-count">Showing ${visible.length} opening ${visible.length===1?'family':'families'} · ${state.showShortLines?'Short sidelines included':'Short sidelines hidden; main lines retained'}</p><div class="opening-list">${visible.length?visible.map(openingCard).join(''):'<div class="no-results">No openings match those filters.</div>'}</div></section></section>${selectedLines.length?`<div class="mobile-start"><span>${selectedLines.length} lines selected</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
+  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${drillable.length}</span><small>lines ready to drill</small><button class="primary" data-action="start" ${drillable.length?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="level-panel"><div><p class="eyebrow">STUDY LEVEL</p><h2>How much theory do you want?</h2><p>Lower levels hide rare opening families and deep sidelines. Your existing selections are always preserved.</p></div><div class="level-switch" role="group" aria-label="Study level">${['beginner','intermediate','advanced'].map(level=>`<button class="${state.level===level?'active':''}" data-action="level" data-id="${level}"><b>${level[0].toUpperCase()+level.slice(1)}</b><small>${level==='beginner'?'Core plans':level==='intermediate'?'Broader theory':'Complete catalog'}</small></button>`).join('')}</div></section>${recommendationsView()}<section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="30" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>New and missed lines come up most; clean runs are rested longer before they return.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">${catalog.length} OPENING FAMILIES · ${catalogLineCount.toLocaleString()} LINES</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-visible">Select level</button><button data-action="clear">Clear</button></div></div><div class="catalog-tools"><label class="catalog-search"><span>⌕</span><input id="catalog-search" type="search" value="${esc(state.query)}" placeholder="Search openings, variations, or ECO…"></label><select id="focus" aria-label="Filter by side"><option value="all" ${state.focus==='all'?'selected':''}>All openings</option><option value="white" ${state.focus==='white'?'selected':''}>White to play</option><option value="black" ${state.focus==='black'?'selected':''}>Black to play</option></select><select id="sort" aria-label="Sort openings"><option value="eco" ${state.sort==='eco'?'selected':''}>ECO order</option><option value="name" ${state.sort==='name'?'selected':''}>Name A–Z</option><option value="lines" ${state.sort==='lines'?'selected':''}>Most variations</option></select><button class="short-lines-toggle ${state.showShortLines?'active':''}" data-action="toggle-short" aria-pressed="${state.showShortLines}"><span>${state.showShortLines?'✓':''}</span> Show lines under 4 moves</button></div><p class="result-count">Showing ${visible.length} opening ${visible.length===1?'family':'families'} · ${state.showShortLines?'Short sidelines included':'Short sidelines hidden; main lines retained'}</p><div class="opening-list">${visible.length?visible.map(openingCard).join(''):'<div class="no-results">No openings match those filters.</div>'}</div></section></section>${drillable.length?`<div class="mobile-start"><span>${drillable.length} line${drillable.length===1?'':'s'} ready</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
 }
 
 function recommendationsView() {
@@ -119,7 +119,7 @@ function openingCard(opening) {
 
 function startSession() {
   const eligibleIds = new Set(levelCatalog().flatMap(opening=>opening.lines.map(line=>line.id)));
-  const available = eligibleSelectedLines(allLines(), state.selected, eligibleIds);
+  const available = drillableLines(allLines(), state.selected, eligibleIds, state.side, state.maxPly);
   const line = weightedPick(available, state.stats);
   if (!line) return;
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;
@@ -157,8 +157,10 @@ async function advanceOpponent() {
 function finishLine() {
   const s=state.session; if (!s || s.complete) return;
   s.complete=true;
-  const old=state.stats[s.drill.line.id] || { attempts:0, correct:0, completions:0 };
-  state.stats[s.drill.line.id]={ attempts:old.attempts+s.userMoves, correct:old.correct+Math.max(0,s.userMoves-s.mistakes), completions:(old.completions||0)+1 };
+  if(!s.userMoves) return;
+  const id=s.drill.line.id;
+  const old=sanitizeStat(state.stats[id]);
+  state.stats[id]={ attempts:old.attempts+s.userMoves, correct:old.correct+Math.max(0,s.userMoves-s.mistakes), completions:old.completions+1, streak:s.mistakes?0:old.streak+1, lastSeenAt:Date.now() };
   save();
 }
 
@@ -244,8 +246,8 @@ function challengeView() {
 }
 
 function progressView() {
-  const lines=allLines().filter(l=>state.stats[l.id]);
-  const attempts=lines.reduce((n,l)=>n+state.stats[l.id].attempts,0), correct=lines.reduce((n,l)=>n+state.stats[l.id].correct,0);
+  const lines=practicedLines(allLines(),state.stats);
+  const attempts=lines.reduce((n,l)=>n+sanitizeStat(state.stats[l.id]).attempts,0), correct=lines.reduce((n,l)=>n+sanitizeStat(state.stats[l.id]).correct,0);
   return appShell(`<main class="page progress-page"><p class="eyebrow">TRAINING HISTORY</p><h1>Your progress</h1><section class="stat-grid"><div><span>${lines.length}</span><small>lines practiced</small></div><div><span>${attempts}</span><small>moves attempted</small></div><div><span>${attempts?Math.round(correct/attempts*100):'—'}${attempts?'%':''}</span><small>overall accuracy</small></div></section><section class="progress-list"><div class="section-heading"><h2>Line mastery</h2><button class="secondary" data-action="reset-stats">Reset progress</button></div>${lines.length?lines.sort((a,b)=>pct(state.stats[a.id])-pct(state.stats[b.id])).map(line=>{const n=pct(state.stats[line.id]); return `<div class="progress-row"><span><b>${esc(line.name)}</b><small>${esc(line.openingName)}</small></span><div class="mastery"><i style="width:${n}%"></i></div><strong>${n}%</strong></div>`}).join(''):'<div class="empty"><span>♙</span><h3>No drills completed yet</h3><p>Select some lines and play your first session.</p><button class="primary" data-action="home">Choose openings</button></div>'}</section></main>`);
 }
 
@@ -317,7 +319,7 @@ function handleClick(event) {
 
 function handleChange(event) {
   if(event.target.matches('[data-line]')){event.target.checked?state.selected.add(event.target.dataset.line):state.selected.delete(event.target.dataset.line);save();render();}
-  if(event.target.id==='side'){state.side=event.target.value;save();}
+  if(event.target.id==='side'){state.side=event.target.value;save();render();}
   if(event.target.id==='depth'){state.maxPly=Number(event.target.value);save();document.querySelector('#depthLabel').textContent=`${state.maxPly} ply`;}
   if(event.target.id==='focus'){state.focus=event.target.value;save();render();}
   if(event.target.id==='sort'){state.sort=event.target.value;save();render();}

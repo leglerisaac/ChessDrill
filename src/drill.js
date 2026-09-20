@@ -18,13 +18,86 @@ export function createDrill(line, color = line.repertoireColor, maxPly = line.mo
   return { line, color, positions, prompts };
 }
 
-export function weightedPick(items, stats = {}, random = Math.random) {
+// How many leading plies `linePositions(line).slice(0, maxPly)` keeps - i.e. exactly what
+// createDrill would see. Mirrors Array.prototype.slice's relative-end and Infinity rules.
+function pliesWithin(line, maxPly) {
+  const end = Number(maxPly);
+  if (end === Infinity) return line.moves.length;
+  if (!Number.isFinite(end)) return 0;
+  const limit = Math.trunc(end);
+  return limit < 0 ? Math.max(0, line.moves.length + limit) : Math.min(line.moves.length, limit);
+}
+
+// Plies alternate White, Black, White, ... from the opening position, so a side only gets a prompt
+// once the line reaches its own first ply. Kept free of chess.js because the library filters
+// thousands of candidate lines on every render; the test suite pins it to createDrill.
+export function isLinePlayable(line, side = 'repertoire', maxPly = line.moves.length) {
+  const color = side === 'repertoire' ? line.repertoireColor : side;
+  const plies = pliesWithin(line, maxPly);
+  return color === 'white' ? plies >= 1 : plies >= 2;
+}
+
+export function playableLines(lines, side = 'repertoire', maxPly) {
+  return lines.filter(line => isLinePlayable(line, side, maxPly));
+}
+
+// The exact pool a drill can be started from: selected, allowed at the current study level, and
+// playable by the side being practised.
+export function drillableLines(lines, selectedIds, eligibleIds, side = 'repertoire', maxPly) {
+  return playableLines(eligibleSelectedLines(lines, selectedIds, eligibleIds), side, maxPly);
+}
+
+const DAY_MS = 86400000;
+
+function whole(value) {
+  const number = Math.floor(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+export function sanitizeStat(stat) {
+  const attempts = whole(stat?.attempts);
+  const lastSeenAt = Number(stat?.lastSeenAt);
+  return {
+    attempts,
+    correct: Math.min(attempts, whole(stat?.correct)),
+    completions: whole(stat?.completions),
+    streak: whole(stat?.streak),
+    lastSeenAt: Number.isFinite(lastSeenAt) && lastSeenAt > 0 ? lastSeenAt : 0,
+  };
+}
+
+export function practicedLines(lines, stats = {}) {
+  return lines.filter(line => sanitizeStat(stats[line.id]).attempts > 0);
+}
+
+// Days a line rests after a clean completion. Every consecutive clean run doubles the gap, so a
+// line you keep getting right stops interrupting the ones you keep missing.
+export function restDays(streak = 0) {
+  return Math.min(16, 2 ** Math.min(whole(streak), 4));
+}
+
+// How overdue a line is, measured in its own rest intervals. Never-practiced lines count as due.
+export function overdueRatio(stat, now = Date.now()) {
+  const { lastSeenAt, streak } = sanitizeStat(stat);
+  if (!lastSeenAt) return 1;
+  const days = (Number(now) - lastSeenAt) / DAY_MS;
+  if (!Number.isFinite(days) || days <= 0) return 0;
+  return days / restDays(streak);
+}
+
+export function lineWeight(stat, now = Date.now()) {
+  const { attempts, correct } = sanitizeStat(stat);
+  const accuracy = attempts ? correct / attempts : 0;
+  const newBoost = Math.max(0, 3 - attempts);
+  const missBoost = (1 - accuracy) * 3;
+  const leechBoost = attempts >= 3 && accuracy < 0.5 ? 2 : 0;
+  const dueBoost = Math.min(4, overdueRatio(stat, now)) * 0.5;
+  return 1 + newBoost + missBoost + leechBoost + dueBoost;
+}
+
+export function weightedPick(items, stats = {}, random = Math.random, now = Date.now()) {
   if (!items.length) return null;
-  const weights = items.map(item => {
-    const stat = stats[item.id] || { attempts: 0, correct: 0 };
-    const accuracy = stat.attempts ? stat.correct / stat.attempts : 0;
-    return 1 + (1 - accuracy) * 3 + Math.max(0, 3 - stat.attempts);
-  });
+  const weights = items.map(item => lineWeight(stats[item.id], now));
   let cursor = random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < items.length; i += 1) {
     cursor -= weights[i];

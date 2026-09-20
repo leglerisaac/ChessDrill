@@ -11,12 +11,33 @@ const rows = files.flatMap(file => fs.readFileSync(file, 'utf8').trim().split('\
 const blackFocus = /defen[cs]e|countergambit|benoni|benko gambit|indian game|bogo-indian|nimzo-indian|gr[üu]nfeld|modern defense|pirc|philidor|petrov|slav|scandinavian|sicilian|caro-kann|french defense|dutch defense|alekhine|owen's defense|st\. george/i;
 const slug = value => value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const groups = new Map();
+const rawFamilies = new Set(rows.map(row => row.name.split(': ')[0]));
+const specialParents = new Map([
+  ['Vienna Gambit, with Max Lange Defense', ['Vienna Game', 'Vienna Gambit, with Max Lange Defense']],
+  ["Queen's Indian Accelerated", ["Queen's Indian Defense", 'Accelerated']],
+]);
+
+function organizeFamily(rawFamily) {
+  if (specialParents.has(rawFamily)) {
+    const [family, prefix] = specialParents.get(rawFamily);
+    return { family, prefix };
+  }
+  const withIndex = rawFamily.indexOf(', with ');
+  if (withIndex > 0) {
+    const family = rawFamily.slice(0, withIndex);
+    if (rawFamilies.has(family)) return { family, prefix:`with ${rawFamily.slice(withIndex + 7)}` };
+  }
+  const status = rawFamily.match(/^(.*) (Accepted|Declined)$/);
+  if (status && rawFamilies.has(status[1])) return { family:status[1], prefix:status[2] };
+  return { family:rawFamily, prefix:'' };
+}
 
 for (const row of rows) {
-  const [family, ...detail] = row.name.split(': ');
+  const [rawFamily, ...detail] = row.name.split(': ');
+  const { family, prefix } = organizeFamily(rawFamily);
   if (!groups.has(family)) groups.set(family, []);
   const moves = row.pgn.split(/\s+/).filter(token => !/^\d+\.{1,3}$/.test(token) && !/^\d+\.\.\.$/.test(token));
-  groups.get(family).push({ eco: row.eco, name: detail.join(': ') || 'Main line', moves });
+  groups.get(family).push({ eco: row.eco, name: [prefix, detail.join(': ')].filter(Boolean).join(': ') || 'Main line', moves });
 }
 
 const openings = [...groups.entries()].map(([name, lines]) => {

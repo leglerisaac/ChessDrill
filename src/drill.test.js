@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OPENINGS, allLines } from './openings.js';
-import { createDrill, eligibleSelectedLines, linePositions, weightedPick } from './drill.js';
+import { chooseTheoryMove, createDrill, eligibleSelectedLines, linePositions, theoryOptions, weightedPick } from './drill.js';
 
 describe('opening data', () => {
   it('contains only legal move sequences', () => {
@@ -38,5 +38,23 @@ describe('opening data', () => {
     expect(queensGambit.lines.some(line => line.name.startsWith('Declined'))).toBe(true);
     expect(OPENINGS.some(opening => opening.name === "Queen's Gambit Accepted")).toBe(false);
     expect(OPENINGS.some(opening => opening.name === "Queen's Gambit Declined")).toBe(false);
+  });
+  it('keeps every documented branch matching the moves played in a theory challenge', () => {
+    const candidates = [
+      { id:'a', moves:['e4','e5','Nf3'] },
+      { id:'b', moves:['e4','c5','Nf3'] },
+      { id:'c', moves:['d4','d5','c4'] },
+    ];
+    const firstMoves = theoryOptions(candidates, 0);
+    expect(firstMoves.get('e4').map(line=>line.id)).toEqual(['a','b']);
+    const replies = theoryOptions(firstMoves.get('e4'), 1);
+    expect([...replies.keys()]).toEqual(['e5','c5']);
+  });
+  it('uses broader opponent reply weighting at higher theory difficulty', () => {
+    const common = Array.from({length:9},(_,i)=>({id:`c${i}`}));
+    const rare = [{id:'rare'}];
+    const options = new Map([['e5',common],['c5',rare]]);
+    expect(chooseTheoryMove(options,'common',()=>0.5).san).toBe('e5');
+    expect(chooseTheoryMove(options,'wild',()=>0.75).san).toBe('c5');
   });
 });

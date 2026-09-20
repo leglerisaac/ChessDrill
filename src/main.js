@@ -33,6 +33,7 @@ const state = {
   sort: saved.sort || 'eco',
   query: '',
   level: saved.level || 'beginner',
+  showShortLines: saved.showShortLines || false,
   orientation: 'white',
   session: null,
   selectedSquare: null,
@@ -41,21 +42,25 @@ const state = {
 };
 
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly, focus:state.focus, sort:state.sort, level:state.level }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ selected:[...state.selected], expanded:[...state.expanded], stats:state.stats, side:state.side, maxPly:state.maxPly, focus:state.focus, sort:state.sort, level:state.level, showShortLines:state.showShortLines }));
 }
 
 function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function pct(stat) { return stat?.attempts ? Math.round(stat.correct / stat.attempts * 100) : null; }
 
 function openingForLevel(opening) {
-  if (state.level === 'advanced') return opening;
+  const keepLine = line => state.showShortLines || line.moves.length >= 8 || line.name === 'Main line';
+  if (state.level === 'advanced') {
+    const lines = opening.lines.filter(keepLine);
+    return lines.length ? { ...opening, lines } : null;
+  }
   const allowed = state.level === 'beginner' ? BEGINNER_FAMILIES : INTERMEDIATE_FAMILIES;
   if (!allowed.has(opening.name)) return null;
   const limit = state.level === 'beginner' ? 8 : 14;
   const candidates = state.level === 'beginner'
-    ? opening.lines.filter(line => line.moves.length >= 4 && line.moves.length <= 10)
+    ? opening.lines.filter(line => line.moves.length <= 10)
     : opening.lines;
-  const lines = [...candidates].sort((a,b) => a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,limit);
+  const lines = candidates.filter(keepLine).sort((a,b) => a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,limit);
   if (!lines.length) return null;
   return { ...opening, lines, description:`${lines.length} ${state.level} ${lines.length===1?'line':'lines'}` };
 }
@@ -76,7 +81,7 @@ function libraryView() {
   const query = state.query.trim().toLowerCase();
   if (query) visible = visible.filter(opening => opening.name.toLowerCase().includes(query) || opening.eco.toLowerCase().includes(query) || opening.lines.some(line => line.name.toLowerCase().includes(query)));
   visible = [...visible].sort((a,b) => state.sort === 'name' ? a.name.localeCompare(b.name) : state.sort === 'lines' ? b.lines.length-a.lines.length || a.name.localeCompare(b.name) : a.eco.localeCompare(b.eco) || a.name.localeCompare(b.name));
-  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${state.selected.size}</span><small>active lines</small><button class="primary" data-action="start" ${state.selected.size?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="level-panel"><div><p class="eyebrow">STUDY LEVEL</p><h2>How much theory do you want?</h2><p>Lower levels hide rare opening families and deep sidelines. Your existing selections are always preserved.</p></div><div class="level-switch" role="group" aria-label="Study level">${['beginner','intermediate','advanced'].map(level=>`<button class="${state.level===level?'active':''}" data-action="level" data-id="${level}"><b>${level[0].toUpperCase()+level.slice(1)}</b><small>${level==='beginner'?'Core plans':level==='intermediate'?'Broader theory':'Complete catalog'}</small></button>`).join('')}</div></section>${recommendationsView()}<section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="30" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>Lines you miss appear more often. New lines get priority until they stick.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">${catalog.length} OPENING FAMILIES · ${catalogLineCount.toLocaleString()} LINES</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-visible">Select level</button><button data-action="clear">Clear</button></div></div><div class="catalog-tools"><label class="catalog-search"><span>⌕</span><input id="catalog-search" type="search" value="${esc(state.query)}" placeholder="Search openings, variations, or ECO…"></label><select id="focus" aria-label="Filter by side"><option value="all" ${state.focus==='all'?'selected':''}>All openings</option><option value="white" ${state.focus==='white'?'selected':''}>White to play</option><option value="black" ${state.focus==='black'?'selected':''}>Black to play</option></select><select id="sort" aria-label="Sort openings"><option value="eco" ${state.sort==='eco'?'selected':''}>ECO order</option><option value="name" ${state.sort==='name'?'selected':''}>Name A–Z</option><option value="lines" ${state.sort==='lines'?'selected':''}>Most variations</option></select></div><p class="result-count">Showing ${visible.length} opening ${visible.length===1?'family':'families'}</p><div class="opening-list">${visible.length?visible.map(openingCard).join(''):'<div class="no-results">No openings match those filters.</div>'}</div></section></section>${selectedLines.length?`<div class="mobile-start"><span>${selectedLines.length} lines selected</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
+  return appShell(`<main class="page"><section class="hero"><div><p class="eyebrow">OPENING TRAINER</p><h1>Know your <em>next move.</em></h1><p>Build a focused repertoire, choose the exact variations you care about, and drill them until the right move feels automatic.</p></div><div class="hero-card"><span>${state.selected.size}</span><small>active lines</small><button class="primary" data-action="start" ${state.selected.size?'':'disabled'}>Start drill <b>→</b></button></div></section><section class="level-panel"><div><p class="eyebrow">STUDY LEVEL</p><h2>How much theory do you want?</h2><p>Lower levels hide rare opening families and deep sidelines. Your existing selections are always preserved.</p></div><div class="level-switch" role="group" aria-label="Study level">${['beginner','intermediate','advanced'].map(level=>`<button class="${state.level===level?'active':''}" data-action="level" data-id="${level}"><b>${level[0].toUpperCase()+level.slice(1)}</b><small>${level==='beginner'?'Core plans':level==='intermediate'?'Broader theory':'Complete catalog'}</small></button>`).join('')}</div></section>${recommendationsView()}<section class="workspace"><aside class="filters"><p class="label">TRAINING SETTINGS</p><label>Practice side<select id="side"><option value="repertoire" ${state.side==='repertoire'?'selected':''}>Opening repertoire side</option><option value="white" ${state.side==='white'?'selected':''}>White only</option><option value="black" ${state.side==='black'?'selected':''}>Black only</option></select></label><label>Maximum depth <span id="depthLabel">${state.maxPly} ply</span><input id="depth" type="range" min="4" max="30" step="2" value="${state.maxPly}"></label><div class="tip"><b>Smart rotation</b><p>Lines you miss appear more often. New lines get priority until they stick.</p></div></aside><section class="library"><div class="section-heading"><div><p class="eyebrow">${catalog.length} OPENING FAMILIES · ${catalogLineCount.toLocaleString()} LINES</p><h2>Choose what to drill</h2></div><div class="selection-actions"><button data-action="select-visible">Select level</button><button data-action="clear">Clear</button></div></div><div class="catalog-tools"><label class="catalog-search"><span>⌕</span><input id="catalog-search" type="search" value="${esc(state.query)}" placeholder="Search openings, variations, or ECO…"></label><select id="focus" aria-label="Filter by side"><option value="all" ${state.focus==='all'?'selected':''}>All openings</option><option value="white" ${state.focus==='white'?'selected':''}>White to play</option><option value="black" ${state.focus==='black'?'selected':''}>Black to play</option></select><select id="sort" aria-label="Sort openings"><option value="eco" ${state.sort==='eco'?'selected':''}>ECO order</option><option value="name" ${state.sort==='name'?'selected':''}>Name A–Z</option><option value="lines" ${state.sort==='lines'?'selected':''}>Most variations</option></select><button class="short-lines-toggle ${state.showShortLines?'active':''}" data-action="toggle-short" aria-pressed="${state.showShortLines}"><span>${state.showShortLines?'✓':''}</span> Show lines under 4 moves</button></div><p class="result-count">Showing ${visible.length} opening ${visible.length===1?'family':'families'} · ${state.showShortLines?'Short sidelines included':'Short sidelines hidden; main lines retained'}</p><div class="opening-list">${visible.length?visible.map(openingCard).join(''):'<div class="no-results">No openings match those filters.</div>'}</div></section></section>${selectedLines.length?`<div class="mobile-start"><span>${selectedLines.length} lines selected</span><button class="primary" data-action="start">Start drill →</button></div>`:''}</main>`);
 }
 
 function recommendationsView() {
@@ -212,6 +217,7 @@ function handleClick(event) {
   if(action==='clear'){state.selected.clear();save();}
   if(action==='toggle-opening'){const full=OPENINGS.find(x=>x.id===id);const o=openingForLevel(full)||full;const all=o.lines.every(l=>state.selected.has(l.id));o.lines.forEach(l=>all?state.selected.delete(l.id):state.selected.add(l.id));save();}
   if(action==='level'){state.level=id;state.query='';save();}
+  if(action==='toggle-short'){state.showShortLines=!state.showShortLines;save();}
   if(action==='recommend'){const full=OPENINGS.find(x=>x.id===id);const o=openingForLevel(full)||full;const all=o.lines.every(l=>state.selected.has(l.id));o.lines.forEach(l=>all?state.selected.delete(l.id):state.selected.add(l.id));save();}
   if(action==='start'||action==='next') return startSession();
   if(action==='hint') state.hint=true;

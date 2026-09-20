@@ -4,8 +4,9 @@ ChessDrill is a focused, browser-based chess opening trainer. Choose exact varia
 
 ## Features
 
-- Six starter opening repertoires with 21 individually selectable lines
+- 149 opening families with 3,815 individually selectable named lines across ECO A00–E99
 - Fine-grained line selection and maximum-depth control
+- Search, ECO/name/variation-count sorting, and White/Black opening-focus filters
 - White, Black, or repertoire-side practice
 - Weighted rotation that emphasizes new and missed lines
 - Click-to-move interactive chessboard with legal move guidance
@@ -32,3 +33,11 @@ npm run build
 The included workflow builds and publishes the app whenever `main` is updated. In the repository settings, select **GitHub Actions** as the Pages source.
 
 Opening data is stored in `src/openings.js`, making it straightforward to expand the built-in repertoire.
+
+## Opening data
+
+The bundled catalog is generated from the public-domain [`lichess-org/chess-openings`](https://github.com/lichess-org/chess-openings) dataset (CC0). To regenerate it after downloading that repository:
+
+```bash
+node scripts/generate-openings.mjs path/to/chess-openings/{a,b,c,d,e}.tsv
+```

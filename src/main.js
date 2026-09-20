@@ -52,7 +52,11 @@ function openingForLevel(opening) {
   const allowed = state.level === 'beginner' ? BEGINNER_FAMILIES : INTERMEDIATE_FAMILIES;
   if (!allowed.has(opening.name)) return null;
   const limit = state.level === 'beginner' ? 8 : 14;
-  const lines = [...opening.lines].sort((a,b) => a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,limit);
+  const candidates = state.level === 'beginner'
+    ? opening.lines.filter(line => line.moves.length >= 4 && line.moves.length <= 10)
+    : opening.lines;
+  const lines = [...candidates].sort((a,b) => a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,limit);
+  if (!lines.length) return null;
   return { ...opening, lines, description:`${lines.length} ${state.level} ${lines.length===1?'line':'lines'}` };
 }
 

@@ -7,7 +7,7 @@ const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'
 const MOVE_MS = 240;
 const REPLY_PAUSE_MS = 380;
 const BEGINNER_FAMILIES = new Set(['Italian Game','Scotch Game','Four Knights Game','Ruy Lopez','Vienna Game',"Queen's Gambit",'London System','English Opening',"King's Indian Attack",'Sicilian Defense','French Defense','Caro-Kann Defense','Scandinavian Defense','Pirc Defense',"King's Indian Defense",'Slav Defense','Dutch Defense']);
-const INTERMEDIATE_FAMILIES = new Set([...BEGINNER_FAMILIES,'Alekhine Defense','Benoni Defense','Benko Gambit','Bishop\'s Opening','Catalan Opening','English Defense','Grünfeld Defense','Modern Defense','Nimzo-Indian Defense','Nimzo-Larsen Attack',"Queen's Gambit Accepted","Queen's Gambit Declined","Queen's Indian Defense",'Réti Opening','Semi-Slav Defense','Three Knights Opening','Trompowsky Attack','Bird Opening','Danish Gambit','King\'s Gambit','Petrov\'s Defense','Philidor Defense']);
+const INTERMEDIATE_FAMILIES = new Set([...BEGINNER_FAMILIES,'Alekhine Defense','Benoni Defense','Benko Gambit','Bishop\'s Opening','Catalan Opening','English Defense','Grünfeld Defense','Modern Defense','Nimzo-Indian Defense','Nimzo-Larsen Attack',"Queen's Indian Defense",'Réti Opening','Semi-Slav Defense','Three Knights Opening','Trompowsky Attack','Bird Opening','Danish Gambit','King\'s Gambit','Petrov\'s Defense','Philidor Defense']);
 const RECOMMENDATIONS = [
   { name:'Italian Game', reason:'Natural development and clear attacking plans.', levels:['beginner','intermediate','advanced'] },
   { name:"Queen's Gambit", reason:'A principled introduction to positional chess.', levels:['beginner','intermediate','advanced'] },

@@ -27,6 +27,22 @@ button{cursor:pointer}
 .primary:hover{background:var(--green-dark)}
 .primary:disabled{opacity:.45;cursor:not-allowed}
 .hero-card .primary{grid-column:1/-1;margin-top:18px;display:flex;justify-content:space-between}
+.level-panel{display:grid;grid-template-columns:minmax(260px,1fr) minmax(420px,1.35fr);gap:36px;align-items:center;padding:34px 0;border-bottom:1px solid #d5dbd6}
+.level-panel h2{font:30px 'DM Serif Display';margin:0 0 7px}
+.level-panel>div>p:last-child{margin:0;color:var(--muted);font-size:13px}
+.level-switch{display:grid;grid-template-columns:repeat(3,1fr);padding:5px;background:#e5e8e3;border-radius:13px}
+.level-switch button{border:0;background:transparent;border-radius:9px;padding:12px 8px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.level-switch button.active{background:#fff;color:var(--ink);box-shadow:0 3px 12px rgba(20,37,31,.1)}
+.level-switch small{font-size:10px}
+.recommended{padding:42px 0 6px}
+.recommended>.section-heading>p{margin:0;color:var(--muted);font-size:12px}
+.recommendation-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.recommendation-grid article{background:#fff;border:1px solid var(--line);border-radius:13px;padding:16px;display:grid;grid-template-columns:38px 1fr auto;gap:12px;align-items:start}
+.recommendation-grid article>div{min-width:0}
+.recommendation-grid article p{font-size:11px;line-height:1.4;color:var(--muted);margin:4px 0 8px}
+.recommendation-grid article small{font-size:10px;color:var(--green)}
+.recommendation-grid article button{border:1px solid #b7cec4;background:#edf6f1;color:var(--green);border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}
+.recommendation-grid article button.added{background:var(--green);color:#fff}
 .workspace{display:grid;grid-template-columns:230px 1fr;gap:54px;padding-top:48px}
 .label{font-size:10px;font-weight:700;letter-spacing:.15em;color:#87938f}
 .filters label{display:block;font-size:13px;font-weight:700;margin:25px 0}
@@ -138,6 +154,12 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .hero{grid-template-columns:1fr;padding-top:10px;gap:25px}
 .hero h1{font-size:46px}
 .hero-card{display:none}
+.level-panel{grid-template-columns:1fr;gap:18px;padding:25px 0}
+.level-switch button{padding:10px 4px}
+.level-switch small{display:none}
+.recommended{padding-top:30px}
+.recommended>.section-heading>p{display:none}
+.recommendation-grid{grid-template-columns:1fr}
 .workspace{grid-template-columns:1fr;padding-top:30px}
 .filters{display:grid;grid-template-columns:1fr 1fr;gap:15px}
 .filters .label,.tip{display:none}

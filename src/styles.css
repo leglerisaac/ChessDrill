@@ -62,6 +62,10 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .catalog-search{display:flex;align-items:center;gap:8px;padding:0 12px}
 .catalog-search span{font-size:22px;color:var(--muted);transform:rotate(-15deg)}
 .catalog-search input{width:100%;border:0;outline:0;background:transparent;color:var(--ink)}
+.short-lines-toggle{grid-column:1/-1;justify-self:start;border:0;background:none;padding:3px 0;color:var(--muted);font-size:11px;display:flex;align-items:center;gap:7px}
+.short-lines-toggle span{width:17px;height:17px;border:1px solid #aebbb5;border-radius:5px;background:#fff;color:#fff;display:grid;place-items:center;font-size:10px}
+.short-lines-toggle.active{color:var(--green)}
+.short-lines-toggle.active span{background:var(--green);border-color:var(--green)}
 .result-count{margin:0 0 13px;color:var(--muted);font-size:11px}
 .no-results{text-align:center;padding:60px 20px;background:#fff;border:1px solid var(--line);border-radius:13px;color:var(--muted)}
 .opening-card{background:var(--card);border:1px solid var(--line);border-radius:13px;margin-bottom:12px;overflow:hidden;transition:.2s}

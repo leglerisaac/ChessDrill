@@ -40,6 +40,14 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .section-heading h2{font:32px 'DM Serif Display';margin:0}
 .selection-actions{display:flex;gap:15px}
 .selection-actions button,.line-list-head button,.text-button{border:0;background:none;color:var(--green);font-size:12px;font-weight:700}
+.catalog-tools{display:grid;grid-template-columns:minmax(240px,1fr) 150px 150px;gap:10px;margin:4px 0 8px}
+.catalog-tools select,.catalog-search{height:42px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+.catalog-tools select{padding:0 10px}
+.catalog-search{display:flex;align-items:center;gap:8px;padding:0 12px}
+.catalog-search span{font-size:22px;color:var(--muted);transform:rotate(-15deg)}
+.catalog-search input{width:100%;border:0;outline:0;background:transparent;color:var(--ink)}
+.result-count{margin:0 0 13px;color:var(--muted);font-size:11px}
+.no-results{text-align:center;padding:60px 20px;background:#fff;border:1px solid var(--line);border-radius:13px;color:var(--muted)}
 .opening-card{background:var(--card);border:1px solid var(--line);border-radius:13px;margin-bottom:12px;overflow:hidden;transition:.2s}
 .opening-card:hover{box-shadow:var(--shadow)}
 .opening-card.expanded{border-color:#b9cec5}
@@ -85,6 +93,7 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .square{border:0;padding:0;position:relative;display:grid;place-items:center;line-height:1}
 .square.light{background:var(--light)}
 .square.dark{background:var(--dark)}
+.square.last-from,.square.last-to{box-shadow:inset 0 0 0 999px rgba(246,246,105,.45)}
 .square.selected{box-shadow:inset 0 0 0 999px rgba(246,246,105,.55)}
 .square.hint:after{content:'';position:absolute;inset:5px;border:4px solid #f6f669;border-radius:3px}
 .square.legal:before{content:'';position:absolute;width:25%;aspect-ratio:1;border-radius:50%;background:rgba(20,35,25,.28)}
@@ -137,6 +146,8 @@ input[type=range]{width:100%;accent-color:var(--green);margin-top:15px}
 .section-heading h2{font-size:27px}
 .opening-summary{padding:14px;gap:10px}
 .opening-details{grid-template-columns:38px 1fr 20px;gap:10px}
+.catalog-tools{grid-template-columns:1fr 1fr}
+.catalog-search{grid-column:1/-1}
 .line-count{display:none}
 .line-list-head,.line-row{grid-template-columns:24px 1fr 48px}
 .line-list-head{grid-template-columns:24px 1fr 48px}

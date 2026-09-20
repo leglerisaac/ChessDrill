@@ -3,7 +3,9 @@ import { OPENINGS, allLines } from './openings.js';
 import { createDrill, parseMove, weightedPick } from './drill.js';
 import './styles.css';
 
-const PIECES = { wp:'♙', wn:'♘', wb:'♗', wr:'♖', wq:'♕', wk:'♔', bp:'♟', bn:'♞', bb:'♝', br:'♜', bq:'♛', bk:'♚' };
+const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
+const MOVE_MS = 240;
+const REPLY_PAUSE_MS = 380;
 const STORAGE_KEY = 'chessdrill-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const state = {
@@ -41,7 +43,9 @@ function libraryView() {
 function openingCard(opening) {
   const expanded = state.expanded.has(opening.id);
   const selectedCount = opening.lines.filter(l => state.selected.has(l.id)).length;
-  return `<article class="opening-card ${expanded?'expanded':''}"><button class="opening-summary" data-action="expand" data-id="${opening.id}"><span class="color-dot ${opening.color}">${opening.color==='white'?'W':'B'}</span><span class="opening-title"><b>${esc(opening.name)}</b><small>${opening.eco} · ${esc(opening.description)}</small></span><span class="line-count">${selectedCount}/${opening.lines.length} lines</span><span class="chevron">⌄</span></button>${expanded?`<div class="line-list"><div class="line-list-head"><span>VARIATION</span><span>MOVES</span><button data-action="toggle-opening" data-id="${opening.id}">${selectedCount===opening.lines.length?'Deselect all':'Select all'}</button></div>${opening.lines.map(line => { const stat=state.stats[line.id]; return `<label class="line-row"><input type="checkbox" data-line="${line.id}" ${state.selected.has(line.id)?'checked':''}><span class="fake-check">✓</span><span><b>${esc(line.name)}</b><small>${line.moves.join(' ')}</small></span><span class="moves-count">${line.moves.length} ply</span><span class="accuracy">${pct(stat)===null?'New':pct(stat)+'%'}</span></label>`;}).join('')}</div>`:''}</article>`;
+  const allSelected = selectedCount === opening.lines.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+  return `<article class="opening-card ${expanded?'expanded':''}"><div class="opening-summary"><button class="opening-toggle ${allSelected?'checked':''} ${someSelected?'partial':''}" data-action="toggle-opening" data-id="${opening.id}" aria-label="${allSelected?'Deselect':'Select'} all ${esc(opening.name)} lines" aria-pressed="${allSelected}"><span>✓</span></button><button class="opening-details" data-action="expand" data-id="${opening.id}"><span class="color-dot ${opening.color}">${opening.color==='white'?'W':'B'}</span><span class="opening-title"><b>${esc(opening.name)}</b><small>${opening.eco} · ${esc(opening.description)}</small></span><span class="line-count">${selectedCount}/${opening.lines.length} lines</span><span class="chevron">⌄</span></button></div>${expanded?`<div class="line-list"><div class="line-list-head"><span>VARIATION</span><span>MOVES</span><button data-action="toggle-opening" data-id="${opening.id}">${allSelected?'Deselect all':'Select all'}</button></div>${opening.lines.map(line => { const stat=state.stats[line.id]; return `<label class="line-row"><input type="checkbox" data-line="${line.id}" ${state.selected.has(line.id)?'checked':''}><span class="fake-check">✓</span><span><b>${esc(line.name)}</b><small>${line.moves.join(' ')}</small></span><span class="moves-count">${line.moves.length} ply</span><span class="accuracy">${pct(stat)===null?'New':pct(stat)+'%'}</span></label>`;}).join('')}</div>`:''}</article>`;
 }
 
 function startSession() {
@@ -50,23 +54,33 @@ function startSession() {
   if (!line) return;
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;
   const drill = createDrill(line, color, state.maxPly);
-  state.session = { drill, chess:new Chess(), cursor:0, userMoves:0, mistakes:0, complete:false };
+  const userTurn = color === 'white' ? 'w' : 'b';
+  state.session = { drill, chess:new Chess(), cursor:0, userMoves:0, mistakes:0, complete:false, busy:drill.positions[0]?.turn !== userTurn };
   state.orientation = color;
   state.selectedSquare = null;
   state.message = '';
   state.hint = false;
   state.screen = 'drill';
-  advanceOpponent();
   render();
+  window.setTimeout(advanceOpponent, REPLY_PAUSE_MS);
 }
 
-function advanceOpponent() {
+async function advanceOpponent() {
   const s = state.session;
+  if (!s || s.complete) return;
   while (s.cursor < s.drill.positions.length && s.drill.positions[s.cursor].turn !== (s.drill.color === 'white' ? 'w' : 'b')) {
-    s.chess.move(s.drill.positions[s.cursor].san);
+    s.busy = true;
+    const position = s.drill.positions[s.cursor];
+    await animateMove(position.from, position.to);
+    if (state.session !== s) return;
+    s.chess.move(position.san);
     s.cursor += 1;
+    s.busy = false;
+    render();
+    if (s.cursor < s.drill.positions.length && s.drill.positions[s.cursor].turn !== (s.drill.color === 'white' ? 'w' : 'b')) await delay(REPLY_PAUSE_MS);
   }
   if (s.cursor >= s.drill.positions.length) finishLine();
+  render();
 }
 
 function finishLine() {
@@ -83,7 +97,26 @@ function boardHtml(chess, orientation) {
   const files=orientation==='white'?[0,1,2,3,4,5,6,7]:[7,6,5,4,3,2,1,0];
   const selected=state.selectedSquare;
   const legal=selected ? chess.moves({square:selected,verbose:true}).map(m=>m.to) : [];
-  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=state.hint && state.session?.drill.positions[state.session.cursor]?.from===square; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''}" data-square="${square}" aria-label="${square}${piece?' '+piece.color+piece.type:''}">${piece?`<span class="piece ${piece.color}">${PIECES[piece.color+piece.type]}</span>`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
+  return `<div class="board" role="grid" aria-label="Chess board">${ranks.flatMap((r,ri)=>files.map((f,fi)=>{ const piece=board[r][f]; const square='abcdefgh'[f]+(8-r); const dark=(r+f)%2===1; const hint=state.hint && state.session?.drill.positions[state.session.cursor]?.from===square; const pieceCode=piece?`${piece.color}${piece.type.toUpperCase()}`:''; return `<button class="square ${dark?'dark':'light'} ${selected===square?'selected':''} ${legal.includes(square)?'legal':''} ${hint?'hint':''}" data-square="${square}" aria-label="${square}${piece?' '+(piece.color==='w'?'white ':'black ')+PIECE_NAMES[piece.type]:''}">${piece?`<img class="piece" draggable="false" src="https://lichess1.org/assets/piece/cburnett/${pieceCode}.svg" alt="${piece.color==='w'?'White':'Black'} ${PIECE_NAMES[piece.type]}">`:''}${fi===0?`<small class="rank">${8-r}</small>`:''}${ri===7?`<small class="file">${'abcdefgh'[f]}</small>`:''}</button>`;})).join('')}</div>`;
+}
+
+function delay(ms) { return new Promise(resolve => window.setTimeout(resolve, ms)); }
+
+function animateMove(from, to) {
+  const source = document.querySelector(`[data-square="${from}"] .piece`);
+  const target = document.querySelector(`[data-square="${to}"]`);
+  if (!source || !target) return Promise.resolve();
+  const start = source.getBoundingClientRect();
+  const end = target.getBoundingClientRect();
+  const ghost = source.cloneNode(true);
+  ghost.classList.add('moving-piece');
+  Object.assign(ghost.style, { left:`${start.left}px`, top:`${start.top}px`, width:`${start.width}px`, height:`${start.height}px` });
+  source.style.opacity = '0';
+  document.body.appendChild(ghost);
+  return new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => { ghost.style.transform = `translate(${end.left-start.left}px, ${end.top-start.top}px)`; }));
+    window.setTimeout(() => { ghost.remove(); resolve(); }, MOVE_MS);
+  });
 }
 
 function drillView() {
@@ -98,8 +131,8 @@ function progressView() {
   return appShell(`<main class="page progress-page"><p class="eyebrow">TRAINING HISTORY</p><h1>Your progress</h1><section class="stat-grid"><div><span>${lines.length}</span><small>lines practiced</small></div><div><span>${attempts}</span><small>moves attempted</small></div><div><span>${attempts?Math.round(correct/attempts*100):'—'}${attempts?'%':''}</span><small>overall accuracy</small></div></section><section class="progress-list"><div class="section-heading"><h2>Line mastery</h2><button class="secondary" data-action="reset-stats">Reset progress</button></div>${lines.length?lines.sort((a,b)=>pct(state.stats[a.id])-pct(state.stats[b.id])).map(line=>{const n=pct(state.stats[line.id]); return `<div class="progress-row"><span><b>${esc(line.name)}</b><small>${esc(line.openingName)}</small></span><div class="mastery"><i style="width:${n}%"></i></div><strong>${n}%</strong></div>`}).join(''):'<div class="empty"><span>♙</span><h3>No drills completed yet</h3><p>Select some lines and play your first session.</p><button class="primary" data-action="home">Choose openings</button></div>'}</section></main>`);
 }
 
-function tryMove(square) {
-  const s=state.session; if (!s || s.complete) return;
+async function tryMove(square) {
+  const s=state.session; if (!s || s.complete || s.busy) return;
   const piece=s.chess.get(square); const turn=s.chess.turn();
   if (!state.selectedSquare) {
     if (piece?.color===turn) { state.selectedSquare=square; state.message=''; render(); }
@@ -110,8 +143,13 @@ function tryMove(square) {
   if (!move) { state.selectedSquare=null; state.message='That piece cannot move there.'; render(); return; }
   const expected=s.drill.positions[s.cursor];
   if (move.from===expected.from && move.to===expected.to) {
-    s.chess.move(move.san); s.cursor+=1; s.userMoves+=1; state.selectedSquare=null; state.message='Correct — keep going.'; state.hint=false;
-    advanceOpponent(); render();
+    s.busy=true; state.selectedSquare=null; state.message='Correct — keep going.'; state.hint=false; render();
+    await animateMove(move.from, move.to);
+    if (state.session !== s) return;
+    s.chess.move(move.san); s.cursor+=1; s.userMoves+=1; render();
+    if (s.cursor >= s.drill.positions.length) { s.busy=false; finishLine(); render(); return; }
+    await delay(REPLY_PAUSE_MS);
+    if (state.session === s) advanceOpponent();
   } else {
     s.mistakes+=1; s.userMoves+=1; state.selectedSquare=null; state.message=`Not in this line. Look for ${expected.san}.`; state.hint=true; render();
   }
@@ -129,7 +167,7 @@ function handleClick(event) {
   if(action==='toggle-opening'){const o=OPENINGS.find(x=>x.id===id);const all=o.lines.every(l=>state.selected.has(l.id));o.lines.forEach(l=>all?state.selected.delete(l.id):state.selected.add(l.id));save();}
   if(action==='start'||action==='next') return startSession();
   if(action==='hint') state.hint=true;
-  if(action==='reveal'){const s=state.session,p=s.drill.positions[s.cursor];s.chess.move(p.san);s.cursor++;s.userMoves++;s.mistakes++;state.message='Move revealed.';state.hint=false;advanceOpponent();}
+  if(action==='reveal'){const s=state.session;if(s.busy)return;const p=s.drill.positions[s.cursor];s.busy=true;state.message='Move revealed.';state.hint=false;render();animateMove(p.from,p.to).then(async()=>{if(state.session!==s)return;s.chess.move(p.san);s.cursor++;s.userMoves++;s.mistakes++;render();await delay(REPLY_PAUSE_MS);if(state.session===s)advanceOpponent();});return;}
   if(action==='reset-stats'&&confirm('Reset all ChessDrill progress?')){state.stats={};save();}
   render();
 }

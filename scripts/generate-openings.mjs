@@ -36,6 +36,6 @@ const openings = [...groups.entries()].map(([name, lines]) => {
   };
 }).sort((a, b) => a.eco.localeCompare(b.eco) || a.name.localeCompare(b.name));
 
-const output = `// Generated from lichess-org/chess-openings (CC0). Do not edit by hand.\nexport const OPENINGS = ${JSON.stringify(openings)};\n\nexport const allLines = () => OPENINGS.flatMap(opening => opening.lines.map(line => ({ ...line, openingId: opening.id, openingName: opening.name, repertoireColor: opening.color })));\n`;
+const output = `// Generated from lichess-org/chess-openings (CC0). Do not edit by hand.\nexport const OPENINGS = ${JSON.stringify(openings)};\n\nconst LINES = OPENINGS.flatMap(opening => opening.lines.map(line => ({ ...line, openingId: opening.id, openingName: opening.name, repertoireColor: opening.color })));\nexport const allLines = () => LINES;\n`;
 fs.writeFileSync(new URL('../src/openings.js', import.meta.url), output);
 console.log(`Generated ${openings.length} opening families and ${rows.length} lines.`);

@@ -13,6 +13,16 @@ describe('opening data', () => {
   it('prioritizes an unpracticed line with deterministic randomness', () => {
     const items = [{ id:'mastered' }, { id:'new' }];
     const picked = weightedPick(items, { mastered:{attempts:10,correct:10} }, () => .99);
-    expect(items).toContain(picked);
+    expect(picked.id).toBe('new');
+  });
+
+  it('does not create prompts for the opposite side of a one-ply line', () => {
+    const line = allLines().find(candidate => candidate.moves.length === 1);
+    expect(line).toBeDefined();
+    expect(createDrill(line, line.repertoireColor === 'white' ? 'black' : 'white').prompts).toHaveLength(0);
+  });
+
+  it('reuses the memoized flattened line catalog', () => {
+    expect(allLines()).toBe(allLines());
   });
 });

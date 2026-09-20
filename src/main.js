@@ -98,7 +98,11 @@ function openingCard(opening) {
 }
 
 function startSession() {
-  const available = allLines().filter(line => state.selected.has(line.id));
+  const available = allLines().filter(line => {
+    if (!state.selected.has(line.id)) return false;
+    const color = state.side === 'repertoire' ? line.repertoireColor : state.side;
+    return createDrill(line, color, state.maxPly).prompts.length > 0;
+  });
   const line = weightedPick(available, state.stats);
   if (!line) return;
   const color = state.side === 'repertoire' ? line.repertoireColor : state.side;

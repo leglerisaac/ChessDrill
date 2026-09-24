@@ -13,7 +13,7 @@ describe('opening data', () => {
   it('prioritizes an unpracticed line with deterministic randomness', () => {
     const items = [{ id:'mastered' }, { id:'new' }];
     const picked = weightedPick(items, { mastered:{attempts:10,correct:10} }, () => .99);
-    expect(items).toContain(picked);
+    expect(picked.id).toBe('new');
   });
   it('does not schedule selected lines that were purged or hidden', () => {
     const lines = [{ id:'active' }, { id:'hidden' }];

@@ -1,31 +1,19 @@
 import { Chess } from 'chess.js';
 import { OPENINGS, allLines } from './openings.js';
 import { chooseTheoryMove, createDrill, drillableLines, parseMove, practicedLines, sanitizeStat, theoryOptions, weightedPick } from './drill.js';
+import { BEGINNER_FAMILIES, DEFAULT_EXPANDED_FAMILY, INTERMEDIATE_FAMILIES, RECOMMENDATIONS, levelCatalogFor, openingForLevel as selectLevelOpening } from './study.js';
 import './styles.css';
 
 const PIECE_NAMES = { p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king' };
 const MOVE_MS = 240;
 const REPLY_PAUSE_MS = 380;
-const BEGINNER_FAMILIES = new Set(['Italian Game','Scotch Game','Four Knights Game','Ruy Lopez','Vienna Game',"Queen's Gambit",'London System','English Opening',"King's Indian Attack",'Sicilian Defense','French Defense','Caro-Kann Defense','Scandinavian Defense','Pirc Defense',"King's Indian Defense",'Slav Defense','Dutch Defense']);
-const INTERMEDIATE_FAMILIES = new Set([...BEGINNER_FAMILIES,'Alekhine Defense','Benoni Defense','Benko Gambit','Bishop\'s Opening','Catalan Opening','English Defense','Grünfeld Defense','Modern Defense','Nimzo-Indian Defense','Nimzo-Larsen Attack',"Queen's Indian Defense",'Réti Opening','Semi-Slav Defense','Three Knights Opening','Trompowsky Attack','Bird Opening','Danish Gambit','King\'s Gambit','Petrov\'s Defense','Philidor Defense']);
-const RECOMMENDATIONS = [
-  { name:'Italian Game', reason:'Natural development and clear attacking plans.', levels:['beginner','intermediate','advanced'] },
-  { name:"Queen's Gambit", reason:'A principled introduction to positional chess.', levels:['beginner','intermediate','advanced'] },
-  { name:'London System', reason:'A dependable setup that is easy to revisit.', levels:['beginner','intermediate'] },
-  { name:'Caro-Kann Defense', reason:'A sound, structured answer to 1.e4.', levels:['beginner','intermediate','advanced'] },
-  { name:'French Defense', reason:'Teaches pawn chains and counterplay.', levels:['beginner','intermediate','advanced'] },
-  { name:'Sicilian Defense', reason:'Dynamic winning chances against 1.e4.', levels:['intermediate','advanced'] },
-  { name:'Ruy Lopez', reason:'Classic strategic themes at every level.', levels:['intermediate','advanced'] },
-  { name:"King's Indian Defense", reason:'Active kingside play against 1.d4.', levels:['intermediate','advanced'] },
-  { name:'Nimzo-Indian Defense', reason:'Rich positional play without a passive setup.', levels:['advanced'] },
-];
 const STORAGE_KEY = 'chessdrill-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const validLineIds = new Set(allLines().map(line => line.id));
 const state = {
   screen: 'library',
   selected: new Set((saved.selected || []).filter(id => validLineIds.has(id))),
-  expanded: new Set(saved.expanded || ['italian']),
+  expanded: new Set(saved.expanded || [DEFAULT_EXPANDED_FAMILY]),
   stats: saved.stats || {},
   side: saved.side || 'repertoire',
   maxPly: saved.maxPly || 14,
@@ -50,24 +38,9 @@ function save() {
 function esc(value) { return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function pct(stat) { const s = sanitizeStat(stat); return s.attempts ? Math.round(s.correct / s.attempts * 100) : null; }
 
-function openingForLevel(opening) {
-  const keepLine = line => state.showShortLines || line.moves.length >= 8 || line.name === 'Main line';
-  if (state.level === 'advanced') {
-    const lines = opening.lines.filter(keepLine);
-    return lines.length ? { ...opening, lines } : null;
-  }
-  const allowed = state.level === 'beginner' ? BEGINNER_FAMILIES : INTERMEDIATE_FAMILIES;
-  if (!allowed.has(opening.name)) return null;
-  const limit = state.level === 'beginner' ? 8 : 14;
-  const candidates = state.level === 'beginner'
-    ? opening.lines.filter(line => line.moves.length <= 10)
-    : opening.lines;
-  const lines = candidates.filter(keepLine).sort((a,b) => a.moves.length-b.moves.length || a.name.localeCompare(b.name)).slice(0,limit);
-  if (!lines.length) return null;
-  return { ...opening, lines, description:`${lines.length} ${state.level} ${lines.length===1?'line':'lines'}` };
-}
+const openingForLevel = opening => selectLevelOpening(opening, state.level, state.showShortLines);
 
-function levelCatalog() { return OPENINGS.map(openingForLevel).filter(Boolean); }
+function levelCatalog() { return levelCatalogFor(OPENINGS, state.level, state.showShortLines); }
 
 function challengeLines(difficulty = state.challengeDifficulty) {
   const allowed = difficulty === 'common' ? BEGINNER_FAMILIES : difficulty === 'varied' ? INTERMEDIATE_FAMILIES : null;
